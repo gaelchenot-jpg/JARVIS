@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preload" href="fonts/unbounded-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="css/jarvis.css?v=25">
+<link rel="stylesheet" href="css/jarvis.css?v=26">
 </head>
 <body data-state="idle">
 
@@ -223,6 +223,17 @@
       <label class="champ-bloc"><span>Hauteur <output id="hauteurVal">0,9</output></span>
         <input type="range" id="hauteur" min="0.3" max="1.6" step="0.05" value="0.9">
       </label>
+      <div class="styles-voix" role="group" aria-label="Styles de voix">
+        <span class="aide">Styles : touchez pour écouter et appliquer.</span>
+        <div class="styles-liste">
+          <button type="button" class="style-voix" data-vitesse="1" data-hauteur="0.8">Majordome</button>
+          <button type="button" class="style-voix" data-vitesse="0.95" data-hauteur="0.6">Grave</button>
+          <button type="button" class="style-voix" data-vitesse="1.2" data-hauteur="0.9">Efficace</button>
+          <button type="button" class="style-voix" data-vitesse="1" data-hauteur="1">Naturelle</button>
+          <button type="button" class="style-voix" data-vitesse="0.9" data-hauteur="1.15">Douce</button>
+          <button type="button" class="style-voix" data-vitesse="0.9" data-hauteur="0.35">Robot</button>
+        </div>
+      </div>
       <button type="button" class="btn btn-ligne" id="essayerVoix">Écouter un essai</button>
     </fieldset>
 
@@ -259,6 +270,6 @@
   </form>
 </dialog>
 
-<script src="js/app.js?v=25" defer></script>
+<script src="js/app.js?v=26" defer></script>
 </body>
 </html>

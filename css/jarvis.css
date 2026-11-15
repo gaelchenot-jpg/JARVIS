@@ -383,3 +383,8 @@ fieldset > .btn { align-self: flex-start; }
 .actu-garder:hover:not(:disabled) { border-color: var(--cyan); background: var(--voile); }
 .actu-garder:disabled { opacity: .6; cursor: default; }
 .actu-gardees .actu-rubrique { color: var(--cyan); }
+.styles-voix { display: grid; gap: 8px; }
+.styles-liste { display: flex; flex-wrap: wrap; gap: 8px; }
+.style-voix { min-height: 40px; padding: 0 14px; border: 1px solid var(--cyan-sombre); background: transparent; color: var(--cyan-vif); font: 700 .9rem var(--corps); cursor: pointer; }
+.style-voix:hover { border-color: var(--cyan); background: var(--voile); }
+.style-voix.actif { background: var(--cyan); color: var(--nuit); border-color: var(--cyan); }

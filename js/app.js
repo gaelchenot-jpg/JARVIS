@@ -969,6 +969,7 @@
     $("#cle").value = cfg.cle; $("#modele").value = cfg.modele; $("#surnom").value = cfg.surnom;
     $("#vitesse").value = cfg.vitesse; $("#vitesseVal").textContent = virgule(cfg.vitesse);
     $("#hauteur").value = cfg.hauteur; $("#hauteurVal").textContent = virgule(cfg.hauteur);
+    majStyles();
     $("#cle").placeholder = cfg.fournisseur === "groq" ? "Clé Groq (commence par gsk_)" : "Clé Google AI Studio (commence par AIza)";
     $("#retourCle").textContent = "";
     $("#codeBriefing").value = store.get("codeBriefing", ""); $("#retourCode").textContent = "";
@@ -1001,6 +1002,14 @@
   document.querySelectorAll('input[name="fournisseur"]').forEach((r) => r.addEventListener("change", () => { cfg.fournisseur = r.value; $("#cle").placeholder = r.value === "groq" ? "Clé Groq (commence par gsk_)" : "Clé Google AI Studio (commence par AIza)"; }));
   $("#vitesse").addEventListener("input", (e) => ($("#vitesseVal").textContent = virgule(e.target.value)));
   $("#hauteur").addEventListener("input", (e) => ($("#hauteurVal").textContent = virgule(e.target.value)));
+  function majStyles() { document.querySelectorAll(".style-voix").forEach((b) => b.classList.toggle("actif", Number(b.dataset.vitesse) === Number($("#vitesse").value) && Number(b.dataset.hauteur) === Number($("#hauteur").value))); }
+  document.querySelectorAll(".style-voix").forEach((b) => b.addEventListener("click", () => {
+    $("#vitesse").value = b.dataset.vitesse; $("#vitesseVal").textContent = virgule(b.dataset.vitesse);
+    $("#hauteur").value = b.dataset.hauteur; $("#hauteurVal").textContent = virgule(b.dataset.hauteur);
+    majStyles(); enregistrer(); parler(`Bonjour ${cfg.surnom}. Voici le style ${b.textContent.toLowerCase()}. Tous les systèmes sont opérationnels.`);
+  }));
+  ["vitesse", "hauteur"].forEach((id) => $("#" + id).addEventListener("input", majStyles));
+  $("#voix").addEventListener("change", () => { enregistrer(); parler(`Bonjour ${cfg.surnom}. Voici ma nouvelle voix.`); });
   $("#essayerVoix").addEventListener("click", () => { enregistrer(); parler(`Bonjour ${cfg.surnom}. Tous les systèmes sont opérationnels.`); });
   $("#testerCle").addEventListener("click", async () => {
     enregistrer();
