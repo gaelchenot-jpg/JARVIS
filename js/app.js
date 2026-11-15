@@ -303,9 +303,17 @@
     if (!cfg.cle) throw new Error("Il me manque ma clé pour réfléchir. Ouvrez les réglages, en haut à droite, et collez la clé gratuite.");
     if (!navigator.onLine) throw new Error("Je suis hors ligne. Je peux encore lire le briefing, mais pas discuter.");
     const passe = historique.slice(-12);
-    appelEnCours = new AbortController();
-    try { return await (cfg.fournisseur === "groq" ? appelGroq(passe, question, surMorceau, appelEnCours.signal) : appelGemini(passe, question, surMorceau, appelEnCours.signal)); }
-    finally { appelEnCours = null; }
+    const ctrl = new AbortController(); appelEnCours = ctrl;
+    // Garde-fou : si rien n'arrive en 25 secondes, on abandonne avec un message clair
+    let premier = false, tropLong = false;
+    const minuteur = setTimeout(() => { if (!premier) { tropLong = true; ctrl.abort(); } }, 25000);
+    const morceau = surMorceau ? (t) => { premier = true; surMorceau(t); } : () => { premier = true; };
+    try { return await (cfg.fournisseur === "groq" ? appelGroq(passe, question, morceau, ctrl.signal) : appelGemini(passe, question, morceau, ctrl.signal)); }
+    catch (e) {
+      if (tropLong) throw new Error("Google met trop de temps à répondre. Vérifiez la connexion, puis réessayez.");
+      throw e;
+    }
+    finally { clearTimeout(minuteur); if (appelEnCours === ctrl) appelEnCours = null; }
   }
 
   function erreurHttp(status, detail) {
@@ -321,7 +329,9 @@
     if (cfg.modele) return [cfg.modele];
     const memo = store.get("modelesAutoGemini", null);
     if (memo && Array.isArray(memo.l) && memo.l.length && Date.now() - memo.t < 3 * 864e5) return memo.l;
-    const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=" + encodeURIComponent(cfg.cle));
+    let r;
+    try { r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=" + encodeURIComponent(cfg.cle), { signal: AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined }); }
+    catch { throw new Error("Je n'arrive pas à joindre Google. Vérifiez la connexion internet, puis réessayez."); }
     if (!r.ok) throw erreurHttp(r.status);
     const d = await r.json();
     const noms = (d.models || [])
@@ -394,7 +404,7 @@
     if (memo && Date.now() - memo.t < 7 * 864e5) return memo.m;
     let m = "llama-3.3-70b-versatile";
     try {
-      const r = await fetch("https://api.groq.com/openai/v1/models", { headers: { Authorization: "Bearer " + cfg.cle } });
+      const r = await fetch("https://api.groq.com/openai/v1/models", { headers: { Authorization: "Bearer " + cfg.cle }, signal: AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined });
       if (r.ok) {
         const ids = ((await r.json()).data || []).map((x) => x.id);
         m = ["llama-3.3-70b-versatile", "openai/gpt-oss-120b", "openai/gpt-oss-20b"].find((x) => ids.includes(x)) || ids.find((x) => /llama|gpt-oss|qwen/.test(x)) || m;
@@ -581,7 +591,7 @@
   function enregistrer() {
     const ancien = cfg.fournisseur + cfg.cle;
     cfg.fournisseur = document.querySelector('input[name="fournisseur"]:checked').value;
-    cfg.cle = $("#cle").value.trim(); cfg.modele = $("#modele").value.trim();
+    cfg.cle = $("#cle").value.replace(/\s+/g, ""); cfg.modele = $("#modele").value.trim();
     cfg.surnom = $("#surnom").value.trim() || "Gaël";
     cfg.vitesse = parseFloat($("#vitesse").value); cfg.hauteur = parseFloat($("#hauteur").value);
     cfg.voix = $("#voix").value;
