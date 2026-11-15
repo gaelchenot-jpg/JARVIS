@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preload" href="fonts/unbounded-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="css/jarvis.css?v=16">
+<link rel="stylesheet" href="css/jarvis.css?v=18">
 </head>
 <body data-state="idle">
 
@@ -91,7 +91,7 @@
       <button class="dock-btn" data-dire="Lis-moi le briefing"><svg viewBox="0 0 24 24" aria-hidden="true"><circle fill="none" cx="12" cy="12" r="8"/><path fill="none" d="M12 7v5l3 2"/></svg><span>Briefing</span></button>
       <button class="dock-btn" data-dire="Lis-moi mes mails"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" d="M4 7h16v11H4zM4 7l8 6 8-6"/></svg><span>Mails</span></button>
       <button class="dock-btn" data-dire="Quelles sont mes prochaines publications ?"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" d="M5 5h14v10H9l-4 4z"/></svg><span>Posts</span></button>
-      <button class="dock-btn" data-dire="Quelle heure est-il ?"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle fill="none" cx="12" cy="12" r="2.5"/></svg><span>Heure</span></button>
+      <button class="dock-btn" data-dire="Qu'est-ce que j'ai à l'agenda ?"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" d="M5 6h14v13H5zM5 10h14M9 4v4M15 4v4"/></svg><span>Agenda</span></button>
       <button class="dock-btn" id="dockSilence"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" d="M5 10v4h3l4 4V6L8 10zM16 9l5 6M21 9l-5 6"/></svg><span>Silence</span></button>
     </nav>
   </section>
@@ -121,6 +121,11 @@
         <li><span>Cerveau</span><b id="etatCerveau">—</b></li>
         <li><span>Micro</span><b id="etatMicro">—</b></li>
       </ul>
+    </section>
+
+    <section class="panneau agenda" aria-label="Agenda">
+      <h2>Agenda</h2>
+      <ul class="liste" id="agendaListe"><li class="vide">L'agenda arrive avec le briefing du matin.</li></ul>
     </section>
 
     <section class="panneau briefing" aria-label="Briefing du matin">
@@ -240,6 +245,6 @@
   </form>
 </dialog>
 
-<script src="js/app.js?v=16" defer></script>
+<script src="js/app.js?v=18" defer></script>
 </body>
 </html>

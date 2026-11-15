@@ -20,6 +20,10 @@
     { "date": "2026-11-16T10:30:00+01:00", "reseaux": ["LinkedIn", "Fiche Google"], "titre": "Votre fiche Google est-elle à jour ?", "statut": "programmé" },
     { "date": "2026-11-19T10:30:00+01:00", "reseaux": ["LinkedIn", "Fiche Google"], "titre": "Avant / après : la carte de visite d'un artisan", "statut": "brouillon" }
   ],
+  "agenda": [
+    { "debut": "2026-11-16T14:00:00+01:00", "fin": "2026-11-16T15:00:00+01:00", "titre": "Rendez-vous boulangerie exemple", "lieu": "Damazan" },
+    { "debut": "2026-11-18", "journee": true, "titre": "Salon des artisans (exemple)" }
+  ],
   "a_valider": [
     { "titre": "Brouillon de réponse au devis de la boulangerie", "detail": "Dans les brouillons Gmail" },
     { "titre": "Post du jeudi 19", "detail": "Texte et visuel à relire dans Buffer" }

@@ -256,10 +256,11 @@ fieldset > .btn { align-self: flex-start; }
   .colonne { display: contents; }
   .coeur { order: 0; }
   .jauges { order: 1; }
-  .dialogue { order: 2; }
-  .briefing { order: 3; }
-  .colonne-droite > .panneau:nth-child(2) { order: 4; }
-  .colonne-droite > .panneau:nth-child(3) { order: 5; }
+  .agenda { order: 2; }
+  .dialogue { order: 3; }
+  .briefing { order: 4; }
+  .colonne-droite > .panneau:nth-child(2) { order: 5; }
+  .colonne-droite > .panneau:nth-child(3) { order: 6; }
   .dock { gap: 8px; }
   .dock-btn { width: 60px; }
   .dock-btn svg { width: 50px; height: 50px; padding: 12px; }
@@ -349,3 +350,17 @@ fieldset > .btn { align-self: flex-start; }
 .memoire-liste .vide { color: #4d8a8c; }
 .memoire-suppr { flex: none; background: none; border: 0; color: var(--texte-doux); text-decoration: underline; text-underline-offset: 3px; font-size: .85rem; min-height: 32px; }
 .memoire-suppr:hover { color: var(--rouge); }
+
+/* Agenda */
+.agenda-jour { font: 500 .72rem/1 var(--titre); letter-spacing: .12em; text-transform: uppercase; color: var(--cyan); padding: 12px 0 4px !important; border-top: 0 !important; }
+.agenda-jour:first-child { padding-top: 0 !important; }
+.evt { display: grid !important; grid-template-columns: 64px 1fr; gap: 10px !important; align-items: baseline; }
+.evt-heure { font: 700 .9rem/1.2 var(--titre); color: var(--cyan-vif); font-variant-numeric: tabular-nums; }
+.evt-heure.journee { font-size: .7rem; letter-spacing: .06em; color: var(--texte-doux); }
+.evt-titre { font-weight: 700; overflow-wrap: anywhere; }
+.evt-lieu { display: block; font-size: .85rem; color: var(--texte-doux); font-weight: 400; }
+.evt.maintenant .evt-heure { color: var(--rouge); }
+
+/* Bouton « Valider dans Google Agenda » sous une réponse de Jarvis */
+.btn-agenda { display: inline-flex; align-items: center; margin: 10px 0 0 12px; text-decoration: none; }
+.btn-agenda.fait { background: var(--voile); color: var(--cyan-vif); }

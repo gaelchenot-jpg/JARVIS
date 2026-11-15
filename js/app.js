@@ -217,12 +217,14 @@
   function intentionLocale(t) {
     const n = norm(t);
     if (/^(stop|silence|tais[- ]toi|arrete|chut|ca suffit)\b/.test(n)) return "stop";
+    if (/(ajoute|inscri|note|mets|met |cale|programme|planifie|enregistre|cree|prevois|bloque|reserve)/.test(n) && /(agenda|calendrier|rendez[- ]vous|\brdv\b|reunion|rappel|evenement|creneau|planning)/.test(n)) return "ajout-agenda";
     if (/^(retiens|souviens[- ]toi|n.oublie pas|memorise|note)\b/.test(n)) return "retenir";
     if (/(qu.est[- ]ce que tu sais (sur|de) moi|que sais[- ]tu (sur|de) moi|tu te souviens de quoi|ta memoire)/.test(n)) return "memoire";
     if (/(ecri|redige|reponds|prepare|invente|propose)/.test(n)) return null; // demande de création : le cerveau s'en charge
     if (/(briefing|quoi de neuf|programme du jour|resume du jour|point du matin|fais (moi )?le point)/.test(n)) return "briefing";
     if (/(mail|courrier|boite)/.test(n) && /(lis|resume|quoi|combien|nouveau|important|urgent|recu|j'ai|ai-je|y a)/.test(n)) return "mails";
     if (/(post|publication|reseau|linkedin|facebook|buffer|fiche google)/.test(n) && /(quel|prochain|a venir|programme|prevu|cette semaine|demain|lis)/.test(n)) return "posts";
+    if (/(agenda|rendez[- ]vous|\brdv\b|planning|emploi du temps|suis[- ]je libre|qu.est[- ]ce que j.ai (de prevu|aujourd|demain|cette semaine)|j.ai quoi (aujourd|demain|cette semaine))/.test(n)) return /demain/.test(n) ? "agenda-demain" : /semaine/.test(n) ? "agenda-semaine" : "agenda";
     if (/(quel(le)? heure|il est quelle heure)/.test(n)) return "heure";
     if (/(quel jour|on est le combien|quelle date|date du jour)/.test(n)) return "date";
     return null;
@@ -238,6 +240,7 @@
       const rep = ok ? "C'est noté, je m'en souviendrai." : "Je le savais déjà.";
       ajouterMessage("jarvis", rep); await parler(rep); return;
     }
+    if (intention === "ajout-agenda") { await ajouterAuAgenda(texte); return; }
     if (intention === "memoire") {
       const rep = memoire.length ? "Voici ce que j'ai retenu. " + memoire.join(". ") + "." : "Je n'ai encore rien retenu de particulier.";
       ajouterMessage("jarvis", rep); await parler(rep); return;
@@ -294,6 +297,7 @@
     if (!briefing) return "Je n'ai pas encore de briefing pour aujourd'hui. Chargez le fichier du matin, ou reliez le dossier dans les réglages.";
     if (intention === "mails") return texteMails();
     if (intention === "posts") return textePosts();
+    if (intention.startsWith("agenda")) return texteAgenda(intention);
     return texteBriefing();
   }
 
@@ -307,7 +311,7 @@
       "Tu réponds en français, avec un ton posé, chaleureux et un brin d'humour discret, comme un majordome efficace. Tu le vouvoies.",
       "Tes réponses sont lues à voix haute : phrases courtes, pas de listes à puces, pas de markdown, pas d'émojis. Trois ou quatre phrases maximum, sauf si on te demande un texte long (un post, un mail) : dans ce cas tu l'écris en entier.",
       "Tu peux chercher sur internet quand la question porte sur l'actualité, la météo, des prix, des horaires ou des faits récents : dans ce cas, cite en quelques mots ta source (le nom du site) sans lire d'adresse web.",
-      "Tu n'as pas accès aux mails, au calendrier ni aux réseaux sociaux. Si on te pose une question sur les mails ou les publications du jour, propose de dire « lis-moi le briefing ».",
+      "Tu n'as pas accès directement aux mails, au calendrier ni aux réseaux sociaux. Si on te pose une question sur les mails, l'agenda ou les publications du jour, propose de dire « lis-moi le briefing ». Pour ajouter un rendez-vous, il suffit de dire par exemple « ajoute à l'agenda dentiste mardi à 14 h ».",
       "Tu n'envoies et ne publies jamais rien toi-même. Si tu rédiges un mail ou un post, précise que c'est un brouillon à relire.",
       "Si tu ne sais pas, dis-le simplement plutôt que d'inventer.",
     ].filter(Boolean).join("\n");
@@ -503,7 +507,7 @@
     return baseGmail(m) + "#label/" + encodeURIComponent(lib).replace(/%20/g, "+");
   }
   function afficherBriefing() {
-    tableauMails();
+    tableauMails(); afficherAgenda();
     const maj = $("#briefingMaj");
     if (!briefing) { maj.textContent = "Aucun briefing chargé"; return; }
     const g = dateSure(briefing.genere_le);
@@ -577,11 +581,152 @@
       return `${d ? fmtJourHeure.format(d).replace(":", " h ") : "Date à fixer"}, sur ${(p.reseaux || []).join(" et ") || "les réseaux"} : ${p.titre}${p.statut === "brouillon" ? ", encore à valider" : ""}.`;
     }).join(" ");
   }
+  /* ---------- Agenda (fourni par le briefing) ---------- */
+  const fmtJourCle = new Intl.DateTimeFormat("fr-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Europe/Paris" });
+  const fmtJourLong = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/Paris" });
+  const jourCle = (d) => fmtJourCle.format(d);
+  function evenements() {
+    const l = Array.isArray(briefing && briefing.agenda) ? briefing.agenda : [];
+    return l.map((e) => ({ ...e, d: e.journee ? new Date(String(e.debut).slice(0, 10) + "T12:00:00") : dateSure(e.debut), f: dateSure(e.fin) }))
+      .filter((e) => e.d && (e.journee ? jourCle(e.d) >= jourCle(new Date()) : (e.f || e.d) > new Date()))
+      .sort((a, b) => a.d - b.d);
+  }
+  function nomJour(d) {
+    const auj = jourCle(new Date()), dem = jourCle(new Date(Date.now() + 864e5)), k = jourCle(d);
+    return k === auj ? "Aujourd'hui" : k === dem ? "Demain" : fmtJourLong.format(d).replace(/^./, (c) => c.toUpperCase());
+  }
+  function lienAgenda(e) {
+    try { const u = new URL(e.lien); return u.protocol === "https:" && /^(www\.google\.com|calendar\.google\.com)$/.test(u.hostname) ? u.href : null; } catch { return null; }
+  }
+  function afficherAgenda() {
+    const ul = $("#agendaListe"); if (!ul) return;
+    ul.innerHTML = "";
+    if (!briefing || !Array.isArray(briefing.agenda)) { vide(ul, "L'agenda arrive avec le briefing du matin."); return; }
+    const evts = evenements().slice(0, 12);
+    if (!evts.length) { vide(ul, "Rien de prévu dans les 7 prochains jours."); return; }
+    let jourCourant = "";
+    evts.forEach((e) => {
+      const j = nomJour(e.d);
+      if (j !== jourCourant) { jourCourant = j; const t = document.createElement("li"); t.className = "agenda-jour"; t.textContent = j; ul.appendChild(t); }
+      const l = document.createElement("li"); l.className = "evt";
+      if (!e.journee && e.d <= new Date() && e.f && e.f > new Date()) l.classList.add("maintenant");
+      const h = document.createElement("span"); h.className = "evt-heure" + (e.journee ? " journee" : "");
+      h.textContent = e.journee ? "Journée" : fmtHeure.format(e.d);
+      const lien = lienAgenda(e);
+      const t = document.createElement(lien ? "a" : "span"); t.className = "evt-titre" + (lien ? " lien-mail" : "");
+      t.textContent = e.titre || "Sans titre";
+      if (lien) { t.href = lien; t.target = "_blank"; t.rel = "noopener"; }
+      const bloc = document.createElement("span"); bloc.appendChild(t);
+      if (e.lieu) { const lieu = document.createElement("span"); lieu.className = "evt-lieu"; lieu.textContent = e.lieu; bloc.appendChild(lieu); }
+      l.append(h, bloc); ul.appendChild(l);
+    });
+  }
+  function texteAgenda(portee) {
+    if (!briefing || !Array.isArray(briefing.agenda)) return "Je n'ai pas encore votre agenda. Il arrivera avec le prochain briefing.";
+    const auj = jourCle(new Date()), dem = jourCle(new Date(Date.now() + 864e5));
+    let evts = evenements(), quand;
+    if (portee === "agenda-demain") { evts = evts.filter((e) => jourCle(e.d) === dem); quand = "demain"; }
+    else if (portee === "agenda-semaine") { quand = "ces sept prochains jours"; }
+    else { const a = evts.filter((e) => jourCle(e.d) === auj); quand = "aujourd'hui"; if (!a.length && evts.length) { const p = evts[0]; return `Rien d'autre aujourd'hui. Votre prochain rendez-vous : ${nomJour(p.d).toLowerCase()}${p.journee ? "" : " à " + fmtHeure.format(p.d).replace(":", " h ")}, ${p.titre}.`; } evts = a; }
+    if (!evts.length) return `Vous n'avez rien de prévu ${quand}.`;
+    return `${pluriel(evts.length, "rendez-vous", "rendez-vous")} ${quand}. ` + evts.slice(0, 6).map((e) =>
+      `${portee === "agenda-semaine" ? nomJour(e.d) + ", " : ""}${e.journee ? "toute la journée" : "à " + fmtHeure.format(e.d).replace(":", " h ")} : ${e.titre}${e.lieu ? ", à " + e.lieu : ""}.`).join(" ");
+  }
+
+  /* ---------- Ajout à Google Agenda (dicté) ----------
+     Le cerveau transforme la phrase en rendez-vous ; Jarvis prépare la fiche Google Agenda
+     déjà remplie, et Gaël la valide d'un toucher (aucune clé, aucun accès à son compte). */
+  const deux = (x) => String(x).padStart(2, "0");
+  // « 2026-11-17T14:00 » (heure de Paris) -> date exacte, quel que soit le fuseau de l'appareil
+  function dateParis(loc) {
+    const [a, mo, j, h, mi] = loc.match(/\d+/g).map(Number);
+    const guess = Date.UTC(a, mo - 1, j, h, mi);
+    const vu = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Paris", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).formatToParts(new Date(guess));
+    const g = (t) => Number(vu.find((x) => x.type === t).value);
+    const ecart = Date.UTC(g("year"), g("month") - 1, g("day"), g("hour"), g("minute")) - guess;
+    return new Date(guess - ecart);
+  }
+  function compact(iso) { return iso.replace(/[-:]/g, "").slice(0, 15); } // 2026-11-17T14:00 -> 20261117T1400
+  function lienCreationAgenda(ev) {
+    const u = new URL("https://calendar.google.com/calendar/render");
+    u.searchParams.set("action", "TEMPLATE");
+    u.searchParams.set("text", ev.titre);
+    let dates;
+    if (ev.journee) {
+      const d = new Date(ev.debut.slice(0, 10) + "T12:00:00"), f = new Date(d.getTime() + 864e5);
+      dates = ev.debut.slice(0, 10).replace(/-/g, "") + "/" + `${f.getFullYear()}${deux(f.getMonth() + 1)}${deux(f.getDate())}`;
+    } else dates = compact(ev.debut) + "00/" + compact(ev.fin) + "00";
+    u.searchParams.set("dates", dates);
+    u.searchParams.set("ctz", "Europe/Paris");
+    if (ev.lieu) u.searchParams.set("location", ev.lieu);
+    u.searchParams.set("details", (ev.details ? ev.details + "\n\n" : "") + "Ajouté par Jarvis");
+    return u.href;
+  }
+  function lireEvenement(r) {
+    const m = r.match(/\{[\s\S]*\}/); if (!m) return null;
+    let o; try { o = JSON.parse(m[0]); } catch { return null; }
+    if (!o || o.incomplet || !o.titre || !/^\d{4}-\d{2}-\d{2}/.test(o.debut || "")) return o && o.incomplet ? { incomplet: String(o.incomplet) } : null;
+    const ev = { titre: String(o.titre).slice(0, 120), lieu: o.lieu ? String(o.lieu).slice(0, 120) : "", details: o.details ? String(o.details).slice(0, 300) : "", journee: !!o.journee || !/T\d{2}:\d{2}/.test(o.debut) };
+    ev.debut = ev.journee ? o.debut.slice(0, 10) : o.debut.slice(0, 16);
+    if (!ev.journee) {
+      let f = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(o.fin || "") ? o.fin.slice(0, 16) : "";
+      const d = new Date(ev.debut);
+      if (isNaN(d)) return null;
+      if (!f || new Date(f) <= d) { const g = new Date(d.getTime() + 36e5); f = `${g.getFullYear()}-${deux(g.getMonth() + 1)}-${deux(g.getDate())}T${deux(g.getHours())}:${deux(g.getMinutes())}`; }
+      ev.fin = f;
+    }
+    return ev;
+  }
+  function phraseEvenement(ev) {
+    const d = ev.journee ? new Date(ev.debut + "T12:00:00") : dateParis(ev.debut);
+    return `${ev.titre}, ${fmtJourLong.format(d)}${ev.journee ? ", toute la journée" : " à " + fmtHeure.format(d).replace(":00", " h").replace(":", " h ")}${ev.lieu ? ", à " + ev.lieu : ""}`;
+  }
+  async function ajouterAuAgenda(texte) {
+    setEtat("thinking"); consigne("Je prépare le rendez-vous…");
+    const n = new Date();
+    const consigneEv = `Nous sommes le ${fmtDate.format(n)} (${n.getFullYear()}-${deux(n.getMonth() + 1)}-${deux(n.getDate())}), il est ${fmtHeure.format(n)}, heure de Paris.\n` +
+      `Gaël demande d'ajouter ceci à son agenda : « ${texte} »\n\n` +
+      "Transforme la demande en un seul rendez-vous. Réponds UNIQUEMENT par un objet JSON, sans texte autour :\n" +
+      '{"titre":"titre court et clair","debut":"AAAA-MM-JJTHH:MM","fin":"AAAA-MM-JJTHH:MM ou vide","journee":false,"lieu":"ou vide","details":"ou vide"}\n' +
+      "Règles : dates à venir (« mardi » = le prochain mardi), heure de Paris, sans fuseau. Sans heure précisée, mets journee à true et debut au format AAAA-MM-JJ. " +
+      "Sans durée, laisse fin vide. « Midi » = 12:00, « 14 h 30 » = 14:30, « en fin de matinée » = 11:00, « dans l'après-midi » = 14:00. " +
+      'S\'il manque le jour, réponds {"incomplet":"une question courte pour demander le jour"}.';
+    let ev = null;
+    try { ev = lireEvenement(await demanderAuCerveau(consigneEv, null, { sansHistorique: true, sansWeb: true })); }
+    catch (err) { if (err.name === "AbortError") return; setEtat("idle"); const m = err.message || "Je n'ai pas pu joindre mon cerveau."; ajouterMessage("jarvis", m, true); consigne(m, true); await parler(m); return; }
+    setEtat("idle");
+    memoriser("user", texte);
+    if (!ev || ev.incomplet) {
+      const m = ev && ev.incomplet ? ev.incomplet + " Redites-moi tout en une phrase, par exemple : ajoute à l'agenda dentiste mardi à 14 h." : "Je n'ai pas bien compris le rendez-vous. Dites par exemple : ajoute à l'agenda dentiste mardi à 14 h.";
+      ajouterMessage("jarvis", m); memoriser("model", m); await parler(m); return;
+    }
+    const resume = phraseEvenement(ev);
+    const p = ajouterMessage("jarvis", "Rendez-vous prêt : " + resume + ".");
+    const a = document.createElement("a");
+    a.className = "btn btn-petit btn-agenda"; a.href = lienCreationAgenda(ev); a.target = "_blank"; a.rel = "noopener";
+    a.textContent = "Valider dans Google Agenda";
+    a.addEventListener("click", () => {
+      // on l'affiche tout de suite dans le panneau Agenda, sans attendre le briefing du lendemain
+      if (briefing) {
+        if (!Array.isArray(briefing.agenda)) briefing.agenda = [];
+        briefing.agenda.push({ titre: ev.titre, debut: ev.journee ? ev.debut : dateParis(ev.debut).toISOString(), fin: ev.journee ? "" : dateParis(ev.fin).toISOString(), journee: ev.journee, lieu: ev.lieu, ajoute: true });
+        store.set("briefing", briefing); afficherAgenda();
+      }
+      a.textContent = "Ouvert dans Google Agenda ✓"; a.classList.add("fait");
+    }, { once: true });
+    p.after(a);
+    const dit = `C'est prêt : ${resume}. Touchez « Valider dans Google Agenda » pour l'enregistrer.`;
+    memoriser("model", "Rendez-vous préparé : " + resume + ".");
+    consigne("Touchez le bouton pour l'enregistrer dans Google Agenda.");
+    await parler(dit);
+  }
+
   function texteBriefing() {
     const h = Number(new Intl.DateTimeFormat("fr-FR", { hour: "numeric", hourCycle: "h23", timeZone: "Europe/Paris" }).format(new Date()));
     const salut = h < 18 ? "Bonjour" : "Bonsoir";
     let t = `${salut} ${cfg.surnom || "Gaël"}. `;
     if (briefing.exemple) t += "Attention, ceci est un briefing d'exemple, les données sont fictives. ";
+    if (Array.isArray(briefing.agenda)) t += texteAgenda("agenda") + " ";
     t += texteMails() + " " + textePosts();
     const av = briefing.a_valider || [];
     if (av.length) t += ` Vous avez ${pluriel(av.length, "chose", "choses")} à valider.`;
