@@ -163,8 +163,8 @@
     };
     reco.onerror = (e) => {
       const msg = {
-        "not-allowed": "Le micro est bloqué. Autorisez-le dans les réglages du navigateur (icône du cadenas à côté de l'adresse).",
-        "service-not-allowed": "Le micro est bloqué. Autorisez-le dans les réglages du navigateur.",
+        "not-allowed": "Le micro est bloqué pour cette adresse. Cliquez sur l'icône à gauche de l'adresse, mettez Micro sur Autoriser, puis rechargez la page.",
+        "service-not-allowed": "Ce navigateur refuse la reconnaissance vocale. Ouvrez Jarvis dans Chrome ou Edge, ou écrivez-moi ci-dessous.",
         "no-speech": "Je n'ai rien entendu. Touchez le cercle et parlez un peu plus fort.",
         "audio-capture": "Aucun micro trouvé sur cet appareil.",
         "network": "La reconnaissance vocale a besoin d'internet. Vérifiez la connexion.",
