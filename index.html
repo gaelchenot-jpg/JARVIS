@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preload" href="fonts/unbounded-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="css/jarvis.css?v=8">
+<link rel="stylesheet" href="css/jarvis.css?v=9">
 </head>
 <body data-state="idle">
 
@@ -210,12 +210,15 @@
       </label>
     </fieldset>
 
-    <fieldset id="zoneDossier">
-      <legend>Briefing automatique</legend>
-      <p class="aide">Sur ordinateur, reliez le dossier où arrive le fichier <code>jarvis-briefing.json</code> chaque matin. Jarvis le relira à chaque ouverture.</p>
+    <fieldset>
+      <legend>Briefing du matin</legend>
+      <p class="aide">Le briefing est publié chaque matin sous forme chiffrée. Seul ce code permet de le lire. Il reste sur cet appareil.</p>
+      <label class="champ-bloc">Code du briefing
+        <input type="password" id="codeBriefing" placeholder="XXXXX-XXXXX-XXXXX-XXXXX" autocomplete="off" spellcheck="false" autocapitalize="characters">
+      </label>
       <div class="ligne-btns">
-        <button type="button" class="btn btn-ligne" id="relierDossier">Relier un dossier</button>
-        <span class="retour" id="retourDossier" role="status"></span>
+        <button type="button" class="btn btn-ligne" id="testerCode">Charger le briefing</button>
+        <span class="retour" id="retourCode" role="status"></span>
       </div>
     </fieldset>
 
@@ -226,6 +229,6 @@
   </form>
 </dialog>
 
-<script src="js/app.js?v=8" defer></script>
+<script src="js/app.js?v=9" defer></script>
 </body>
 </html>

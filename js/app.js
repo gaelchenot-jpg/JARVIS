@@ -537,43 +537,50 @@
     e.target.value = "";
   });
 
-  /* Dossier relié (ordinateur, Chrome ou Edge) : la poignée est gardée dans IndexedDB */
-  const idb = {
-    ouvrir: () => new Promise((ok, ko) => { const r = indexedDB.open("jarvis", 1); r.onupgradeneeded = () => r.result.createObjectStore("kv"); r.onsuccess = () => ok(r.result); r.onerror = () => ko(r.error); }),
-    async get(k) { const db = await this.ouvrir(); return new Promise((ok) => { const q = db.transaction("kv").objectStore("kv").get(k); q.onsuccess = () => ok(q.result); q.onerror = () => ok(null); }); },
-    async set(k, v) { const db = await this.ouvrir(); return new Promise((ok) => { const t = db.transaction("kv", "readwrite"); t.objectStore("kv").put(v, k); t.oncomplete = ok; }); },
-  };
-  async function lireDossier(dossier, demander) {
-    const perm = await dossier.queryPermission({ mode: "read" });
-    if (perm !== "granted") {
-      if (!demander) { $("#retourDossier").textContent = "Touchez « Relier un dossier » pour autoriser la lecture."; return; }
-      if ((await dossier.requestPermission({ mode: "read" })) !== "granted") return;
-    }
+  /* ---------- Briefing chiffré publié chaque matin ---------- */
+  const deB64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+  const normCode = (c) => (c || "").toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/(.{5})(?=.)/g, "$1-");
+  async function dechiffrer(paquet, code) {
+    const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(code), "PBKDF2", false, ["deriveKey"]);
+    const cle = await crypto.subtle.deriveKey({ name: "PBKDF2", salt: deB64(paquet.sel), iterations: 250000, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+    const clair = await crypto.subtle.decrypt({ name: "AES-GCM", iv: deB64(paquet.iv) }, cle, deB64(paquet.donnees));
+    return JSON.parse(new TextDecoder().decode(clair));
+  }
+  async function chargerBriefingChiffre(manuel) {
+    const code = store.get("codeBriefing", "");
+    if (!code) return false;
+    let paquet;
     try {
-      const fh = await dossier.getFileHandle("jarvis-briefing.json");
-      nouveauBriefing(JSON.parse(await (await fh.getFile()).text()), "depuis le dossier « " + dossier.name + " »");
-      $("#retourDossier").textContent = "Relié à « " + dossier.name + " »"; $("#retourDossier").className = "retour ok";
+      const r = await fetch("briefing.chiffre.json?t=" + Date.now(), { cache: "no-store" });
+      if (!r.ok) { if (manuel) consigne("Le briefing du matin n'a pas encore été publié.", true); return false; }
+      paquet = await r.json();
+    } catch { if (manuel) consigne("Impossible de récupérer le briefing. Vérifiez la connexion.", true); return false; }
+    try {
+      const b = await dechiffrer(paquet, code);
+      nouveauBriefing(b, manuel ? "et déchiffré" : "");
+      store.set("briefingLu", paquet.publie_le);
+      return true;
     } catch {
-      $("#retourDossier").textContent = "Pas de fichier jarvis-briefing.json dans « " + dossier.name + " »."; $("#retourDossier").className = "retour ko";
+      if (manuel) throw new Error("Code incorrect : impossible d'ouvrir le briefing.");
+      return false;
     }
   }
-  if (window.showDirectoryPicker) {
-    $("#relierDossier").addEventListener("click", async () => {
-      try {
-        let d = await idb.get("dossier");
-        if (d && (await d.queryPermission({ mode: "read" })) !== "granted") return lireDossier(d, true);
-        d = await window.showDirectoryPicker({ id: "jarvis-briefing", mode: "read" });
-        await idb.set("dossier", d);
-        await lireDossier(d, true);
-      } catch (e) { if (e.name !== "AbortError") consigne("Impossible de relier ce dossier.", true); }
-    });
-    idb.get("dossier").then((d) => d && lireDossier(d, false)).catch(() => {});
-  } else {
-    $("#zoneDossier").hidden = true;
+  // Lien d'activation : …/JARVIS/#code=XXXXX-… (le code ne quitte jamais l'appareil)
+  function codeDepuisLien() {
+    const m = location.hash.match(/code=([A-Za-z0-9-]+)/);
+    if (!m) return false;
+    store.set("codeBriefing", normCode(m[1]));
+    history.replaceState(null, "", location.pathname + location.search);
+    return true;
   }
+  codeDepuisLien();
+  window.addEventListener("hashchange", () => { if (codeDepuisLien()) chargerBriefingChiffre(true); });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) chargerBriefingChiffre(false); });
 
   async function briefingParDefaut() {
-    if (briefing) return afficherBriefing();
+    if (await chargerBriefingChiffre(false)) return;
+    if (briefing && !briefing.exemple) return afficherBriefing();
+    if (store.get("codeBriefing", "")) { briefing = null; afficherBriefing(); return; }
     try { const r = await fetch("briefing-exemple.json"); if (r.ok) { briefing = await r.json(); afficherBriefing(); } } catch {}
   }
 
@@ -587,6 +594,7 @@
     $("#hauteur").value = cfg.hauteur; $("#hauteurVal").textContent = virgule(cfg.hauteur);
     $("#cle").placeholder = cfg.fournisseur === "groq" ? "Clé Groq (commence par gsk_)" : "Clé Google AI Studio (commence par AIza)";
     $("#retourCle").textContent = "";
+    $("#codeBriefing").value = store.get("codeBriefing", ""); $("#retourCode").textContent = "";
   }
   function enregistrer() {
     const ancien = cfg.fournisseur + cfg.cle;
@@ -597,7 +605,17 @@
     cfg.voix = $("#voix").value;
     if (ancien !== cfg.fournisseur + cfg.cle) { store.set("modelesAutoGemini2", null); store.set("modeleAutoGroq", null); }
     ["fournisseur", "cle", "modele", "surnom", "vitesse", "hauteur", "voix"].forEach((k) => store.set(k, cfg[k]));
+    store.set("codeBriefing", normCode($("#codeBriefing").value));
   }
+  $("#testerCode").addEventListener("click", async () => {
+    enregistrer();
+    const out = $("#retourCode"); out.className = "retour"; out.textContent = "Chargement…";
+    try {
+      if (!store.get("codeBriefing", "")) throw new Error("Entrez d'abord le code.");
+      const ok = await chargerBriefingChiffre(true);
+      out.textContent = ok ? "Briefing chargé." : "Pas encore de briefing publié. Il arrivera demain matin."; out.className = ok ? "retour ok" : "retour";
+    } catch (e) { out.textContent = e.message; out.className = "retour ko"; }
+  });
   $("#ouvrirReglages").addEventListener("click", () => { remplirReglages(); dlg.showModal(); });
   dlg.addEventListener("close", () => { enregistrer(); tableauEtats(); });
   dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
