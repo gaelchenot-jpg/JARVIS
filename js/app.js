@@ -511,7 +511,7 @@
     return baseGmail(m) + "#label/" + encodeURIComponent(lib).replace(/%20/g, "+");
   }
   function afficherBriefing() {
-    tableauMails(); afficherAgenda(); archiverActu(); afficherActu(); afficherProgramme();
+    tableauMails(); afficherAgenda(); archiverActu(); afficherActu(); afficherProgramme(); majSignaux();
     const maj = $("#briefingMaj");
     if (!briefing) { maj.textContent = "Aucun briefing chargé"; return; }
     const g = dateSure(briefing.genere_le);
@@ -814,7 +814,7 @@
     a.addEventListener("click", () => {
       // on l'affiche tout de suite dans le panneau Agenda, sans attendre le briefing du lendemain
       ajoutsAgenda.push({ titre: ev.titre, debut: ev.journee ? ev.debut : dateParis(ev.debut).toISOString(), fin: ev.journee ? "" : dateParis(ev.fin).toISOString(), journee: ev.journee, lieu: ev.lieu, ajoute: true });
-      store.set("agendaAjouts", ajoutsAgenda); afficherAgenda(); afficherProgramme();
+      store.set("agendaAjouts", ajoutsAgenda); afficherAgenda(); afficherProgramme(); majSignaux();
       a.textContent = "Ouvert dans Google Agenda ✓"; a.classList.add("fait");
     }, { once: true });
     p.after(a);
@@ -822,6 +822,33 @@
     memoriser("model", "Rendez-vous préparé : " + resume + ".");
     consigne("Touchez le bouton pour l'enregistrer dans Google Agenda.");
     await parler(dit);
+  }
+
+  /* ---------- Balises lumineuses : signalent sur le titre d'un onglet qu'il y a quelque chose aujourd'hui ---------- */
+  function poserBalise(selecteur, n, prochain) {
+    const p = document.querySelector(selecteur); if (!p) return;
+    const titre = p.querySelector(".panneau-bascule") || p.querySelector("h2"); if (!titre) return;
+    let b = titre.querySelector(".balise");
+    const mins = prochain ? Math.round((prochain - new Date()) / 6e4) : null;
+    const imminent = mins !== null && mins <= 60;
+    p.classList.toggle("signal-jour", n > 0); p.classList.toggle("signal-imminent", n > 0 && imminent);
+    if (!n) { if (b) b.remove(); return; }
+    if (!b) { b = document.createElement("span"); b.className = "balise"; b.innerHTML = '<span class="balise-led" aria-hidden="true"></span><span class="balise-txt"></span>'; titre.appendChild(b); }
+    b.querySelector(".balise-txt").textContent = imminent ? (mins <= 0 ? "EN COURS" : `T−${mins} MIN`) : `${n} AUJ.`;
+    b.title = imminent ? (mins <= 0 ? "En cours" : `Commence dans ${mins} min`) : `${n} prévu${n > 1 ? "s" : ""} aujourd'hui`;
+  }
+  function majSignaux() {
+    const now = new Date(), auj = jourCle(now);
+    const prochainDe = (l) => { const f = l.map((x) => x.d).filter((d) => d && d.getTime() > now - 36e5).sort((a, b) => a - b); return f[0] || null; };
+    const evts = evenements().filter((e) => jourCle(e.d) === auj && (e.journee || (e.f || e.d) > now)).map((e) => ({ d: e.journee ? null : e.d, f: e.f }));
+    const enCours = evts.find((e) => e.d && e.d <= now && e.f && e.f > now);
+    const posts = (Array.isArray(briefing && briefing.publications) ? briefing.publications : []).map((p) => ({ d: dateSure(p.date) })).filter((p) => p.d && jourCle(p.d) === auj && p.d > now);
+    const prog = programmeDuJour().filter((x) => !x.d || x.d > new Date(now - 36e5));
+    poserBalise(".agenda", evts.length, enCours ? now : prochainDe(evts));
+    poserBalise(".publications", posts.length, prochainDe(posts));
+    poserBalise(".briefing-general", prog.length, enCours ? now : prochainDe(prog));
+    const dock = document.querySelector('.dock-btn[data-dire*="agenda"]');
+    if (dock) dock.classList.toggle("signal-jour", evts.length > 0);
   }
 
   /* ---------- Programme du jour : rendez-vous, publications et rappels d'aujourd'hui, dans l'ordre ---------- */
@@ -1176,6 +1203,7 @@
       });
     });
   })();
+  majSignaux(); setInterval(majSignaux, 60000);
 
   /* ---------- Démarrage ---------- */
   rejouerHistorique();
