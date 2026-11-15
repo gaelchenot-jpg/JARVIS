@@ -104,22 +104,25 @@ body[data-state="listening"] .marque-etat, body[data-state="speaking"] .marque-e
 .trait-fin { stroke: var(--cyan-sombre); stroke-width: 1; }
 #graduations line { stroke: var(--cyan-sombre); stroke-width: 1; }
 #graduations line.majeure { stroke: var(--cyan); stroke-width: 2; }
-.segments { stroke: var(--cyan); stroke-width: 9; stroke-dasharray: 46 6 110 6 20 6 70 6; }
-.segments-halo { stroke: rgb(22 224 220 / .22); stroke-width: 20; stroke-dasharray: 46 6 110 6 20 6 70 6; }
+.secteur { fill: rgb(22 224 220 / .07); stroke: var(--cyan); stroke-width: 1.2; transition: fill 180ms, stroke 180ms; }
+.secteur.allume { fill: rgb(22 224 220 / .38); stroke: var(--cyan-vif); filter: drop-shadow(0 0 6px var(--cyan)); }
+.secteur-txt { fill: var(--cyan-vif); font: 500 9.5px var(--titre); letter-spacing: .12em; pointer-events: none; }
 .arc { stroke: var(--cyan-vif); stroke-width: 4; }
 .arc-halo { stroke: rgb(22 224 220 / .3); stroke-width: 12; }
 .arc-fin { stroke: var(--rouge); stroke-width: 3; }
 .pointilles { stroke: var(--cyan); stroke-width: 5; stroke-dasharray: 2 7; opacity: .8; }
-.arc-moyen { stroke: var(--cyan); stroke-width: 2; }
+.cellule { fill: rgb(22 224 220 / .22) !important; stroke: var(--cyan); stroke-width: 1; }
+.cellule-vive { fill: rgb(140 255 250 / .65) !important; filter: drop-shadow(0 0 5px var(--cyan)); }
 .ailes path { stroke: var(--cyan); stroke-width: 3; stroke-dasharray: 3 5; opacity: .7; }
-.disque { fill: #031c20 !important; stroke: var(--cyan-vif); stroke-width: 2.5; }
-.disque-halo { stroke: rgb(22 224 220 / .28); stroke-width: 14; }
-.disque-interne { stroke: var(--cyan-sombre); stroke-width: 1; stroke-dasharray: 1 5; }
+.disque { fill: url(#gradCoeur) !important; stroke: var(--cyan-vif); stroke-width: 2.5; }
+.disque-halo { stroke: rgb(22 224 220 / .3); stroke-width: 10; }
+.hexa { fill: none; stroke: var(--cyan-vif); stroke-width: 2; filter: drop-shadow(0 0 6px var(--cyan)); }
+.hexa-interne { fill: none; stroke: var(--cyan-sombre); stroke-width: 1; stroke-dasharray: 2 4; }
 .onde rect { fill: var(--cyan-vif); transform-box: fill-box; transform-origin: center; transform: scaleY(.15); transition: transform 120ms linear; }
 
 .anneau { transform-origin: 200px 200px; transform-box: view-box; }
 .anneau-graduations { animation: tourne 120s linear infinite; }
-.anneau-segments { animation: tourne 38s linear infinite reverse; }
+.anneau-cellules { animation: tourne 38s linear infinite reverse; }
 .anneau-arcs { animation: tourne 18s linear infinite; }
 .anneau-pointilles { animation: tourne 60s linear infinite reverse; }
 @keyframes tourne { to { transform: rotate(360deg); } }
@@ -130,9 +133,11 @@ body[data-state="listening"] .marque-etat, body[data-state="speaking"] .marque-e
 /* États */
 body[data-state="listening"] .anneau-arcs { animation-duration: 4s; }
 body[data-state="listening"] .disque { stroke: #fff; stroke-width: 3.5; }
+body[data-state="listening"] .hexa, body[data-state="speaking"] .hexa { stroke: #fff; }
+body[data-state="listening"] .cellule, body[data-state="speaking"] .cellule { fill: rgb(140 255 250 / .5) !important; }
 body[data-state="listening"] .disque-halo { stroke: rgb(140 255 250 / .5); animation: pulse 1.2s ease-in-out infinite; }
 body[data-state="listening"] .onde rect { fill: #fff; }
-body[data-state="thinking"] .anneau-segments { animation-duration: 5s; }
+body[data-state="thinking"] .anneau-cellules { animation-duration: 5s; }
 body[data-state="thinking"] .anneau-pointilles { animation-duration: 6s; }
 body[data-state="thinking"] .disque { stroke-dasharray: 8 8; }
 body[data-state="speaking"] .disque-halo { stroke: rgb(22 224 220 / .55); stroke-width: 22; animation: pulse .9s ease-in-out infinite; }

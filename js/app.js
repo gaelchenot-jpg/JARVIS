@@ -65,6 +65,51 @@
       g.appendChild(l);
     }
   })();
+  /* Couronne de secteurs étiquetés, cellules lumineuses et hexagone du cœur */
+  const pt = (r, a) => [200 + Math.cos(a) * r, 200 + Math.sin(a) * r];
+  const secteurs = [];
+  (function couronne() {
+    const g = $("#couronne"), n = 12, r1 = 155, r2 = 181, ecart = 0.035;
+    const noms = ["AGENDA", "MAILS", "POSTS", "ACTU", "BRIEFING", "VOIX", "MÉMOIRE", "RÉSEAU", "WEB", "SYSTÈME", "CERVEAU", "VEILLE"];
+    const defs = document.querySelector(".noyau svg defs");
+    for (let i = 0; i < n; i++) {
+      const a1 = -Math.PI / 2 + (i / n) * Math.PI * 2 + ecart, a2 = -Math.PI / 2 + ((i + 1) / n) * Math.PI * 2 - ecart;
+      const [x1, y1] = pt(r2, a1), [x2, y2] = pt(r2, a2), [x3, y3] = pt(r1, a2), [x4, y4] = pt(r1, a1);
+      const seg = document.createElementNS(NS, "path");
+      seg.setAttribute("d", `M${x1} ${y1} A${r2} ${r2} 0 0 1 ${x2} ${y2} L${x3} ${y3} A${r1} ${r1} 0 0 0 ${x4} ${y4} Z`);
+      seg.setAttribute("class", "secteur"); g.appendChild(seg); secteurs.push(seg);
+      // texte toujours lisible : sens horaire en haut, antihoraire en bas
+      const milieu = (a1 + a2) / 2, bas = Math.sin(milieu) > 0.05;
+      const rt = bas ? 171 : 164, id = "arcTxt" + i;
+      const [sx, sy] = pt(rt, bas ? a2 : a1), [ex, ey] = pt(rt, bas ? a1 : a2);
+      const chemin = document.createElementNS(NS, "path"); chemin.setAttribute("id", id);
+      chemin.setAttribute("d", `M${sx} ${sy} A${rt} ${rt} 0 0 ${bas ? 0 : 1} ${ex} ${ey}`); defs.appendChild(chemin);
+      const t = document.createElementNS(NS, "text"); t.setAttribute("class", "secteur-txt");
+      const tp = document.createElementNS(NS, "textPath"); tp.setAttribute("href", "#" + id); tp.setAttribute("startOffset", "50%"); tp.setAttribute("text-anchor", "middle");
+      tp.textContent = noms[i]; t.appendChild(tp); g.appendChild(t);
+    }
+    // un secteur s'allume tour à tour, comme un balayage de contrôle
+    let k = 0;
+    const vitesse = () => ({ listening: 140, thinking: 90, speaking: 220 }[document.body.dataset.state] || 650);
+    (function balayer() {
+      if (!document.hidden && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        secteurs.forEach((s, i) => s.classList.toggle("allume", i === k % n || (document.body.dataset.state === "thinking" && i === (k + 6) % n)));
+        k++;
+      }
+      setTimeout(balayer, vitesse());
+    })();
+    const c = $("#cellules");
+    for (let i = 0; i < 16; i++) {
+      const a1 = (i / 16) * Math.PI * 2 + 0.06, a2 = ((i + 1) / 16) * Math.PI * 2 - 0.06;
+      const [x1, y1] = pt(122, a1), [x2, y2] = pt(122, a2), [x3, y3] = pt(103, a2), [x4, y4] = pt(103, a1);
+      const cel = document.createElementNS(NS, "path");
+      cel.setAttribute("d", `M${x1} ${y1} A122 122 0 0 1 ${x2} ${y2} L${x3} ${y3} A103 103 0 0 0 ${x4} ${y4} Z`);
+      cel.setAttribute("class", "cellule" + (i % 4 === 0 ? " cellule-vive" : "")); c.appendChild(cel);
+    }
+    const hexa = (r, rot) => Array.from({ length: 6 }, (_, i) => pt(r, rot + (i * Math.PI) / 3).map((v) => v.toFixed(1)).join(",")).join(" ");
+    document.querySelector(".hexa").setAttribute("points", hexa(80, 0));
+    document.querySelector(".hexa-interne").setAttribute("points", hexa(70, 0));
+  })();
   const barres = [];
   (function onde() {
     const g = $("#onde"), n = 15, w = 5, gap = 4, total = n * w + (n - 1) * gap;

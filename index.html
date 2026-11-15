@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preload" href="fonts/unbounded-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="css/jarvis.css?v=27">
+<link rel="stylesheet" href="css/jarvis.css?v=28">
 </head>
 <body data-state="idle">
 
@@ -51,14 +51,18 @@
   <section class="coeur" aria-label="Parler à Jarvis">
     <button class="noyau" id="noyau" aria-label="Appuyer pour parler">
       <svg viewBox="0 0 400 400" aria-hidden="true">
+        <defs>
+          <radialGradient id="gradCoeur" cx="50%" cy="50%" r="50%">
+            <stop offset="0" stop-color="#8cfffa" stop-opacity=".55"/>
+            <stop offset=".5" stop-color="#16e0dc" stop-opacity=".22"/>
+            <stop offset="1" stop-color="#031c20" stop-opacity="1"/>
+          </radialGradient>
+        </defs>
         <g class="anneau anneau-graduations">
           <circle fill="none" cx="200" cy="200" r="194" class="trait-fin"/>
           <g id="graduations"></g>
         </g>
-        <g class="anneau anneau-segments">
-          <circle fill="none" cx="200" cy="200" r="166" class="segments-halo"/>
-          <circle fill="none" cx="200" cy="200" r="166" class="segments"/>
-        </g>
+        <g class="couronne" id="couronne"></g>
         <g class="anneau anneau-arcs">
           <path fill="none" d="M200 52 A148 148 0 0 1 348 200" class="arc-halo"/>
           <path fill="none" d="M200 52 A148 148 0 0 1 348 200" class="arc"/>
@@ -67,15 +71,16 @@
           <path fill="none" d="M62 146 A148 148 0 0 1 112 81" class="arc arc-fin"/>
         </g>
         <g class="anneau anneau-pointilles">
-          <circle fill="none" cx="200" cy="200" r="128" class="pointilles"/>
-          <path fill="none" d="M200 84 A116 116 0 0 1 316 200 M200 316 A116 116 0 0 1 84 200" class="arc-moyen"/>
+          <circle fill="none" cx="200" cy="200" r="132" class="pointilles"/>
         </g>
+        <g class="anneau anneau-cellules" id="cellules"></g>
         <g class="ailes">
           <path fill="none" d="M22 150 A186 186 0 0 0 22 250" /><path fill="none" d="M378 150 A186 186 0 0 1 378 250" />
         </g>
-        <circle fill="none" cx="200" cy="200" r="100" class="disque-halo"/>
-        <circle fill="none" cx="200" cy="200" r="100" class="disque"/>
-        <circle fill="none" cx="200" cy="200" r="88" class="disque-interne"/>
+        <circle cx="200" cy="200" r="96" class="disque-halo" fill="none"/>
+        <circle cx="200" cy="200" r="96" class="disque"/>
+        <polygon class="hexa" points=""/>
+        <polygon class="hexa-interne" points=""/>
         <g class="onde" id="onde"></g>
       </svg>
       <span class="noyau-texte" id="noyauTexte">Parler</span>
@@ -270,6 +275,6 @@
   </form>
 </dialog>
 
-<script src="js/app.js?v=27" defer></script>
+<script src="js/app.js?v=28" defer></script>
 </body>
 </html>
