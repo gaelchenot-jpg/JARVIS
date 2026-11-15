@@ -259,8 +259,9 @@ fieldset > .btn { align-self: flex-start; }
   .briefing-general, .agenda { order: 2; }
   .dialogue { order: 3; }
   .briefing { order: 4; }
-  .colonne-droite > .panneau:nth-child(2) { order: 5; }
-  .colonne-droite > .panneau:nth-child(3) { order: 6; }
+  .actu-ia { order: 5; }
+  .publications { order: 6; }
+  .a-valider { order: 7; }
   .dock { gap: 8px; }
   .dock-btn { width: 60px; }
   .dock-btn svg { width: 50px; height: 50px; padding: 12px; }
@@ -364,3 +365,15 @@ fieldset > .btn { align-self: flex-start; }
 /* Bouton « Valider dans Google Agenda » sous une réponse de Jarvis */
 .btn-agenda { display: inline-flex; align-items: center; margin: 10px 0 0 12px; text-decoration: none; }
 .btn-agenda.fait { background: var(--voile); color: var(--cyan-vif); }
+
+/* Actu IA */
+.vide-texte { margin: 0; color: var(--texte-doux); }
+.actu-edition + .actu-edition { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--trame); }
+.actu-edition.ancienne { opacity: .72; }
+.actu-date { font: 500 .72rem/1 var(--titre); letter-spacing: .12em; text-transform: uppercase; color: var(--cyan); margin: 0 0 10px; }
+.actu-rubrique { font: 500 .68rem/1 var(--titre); letter-spacing: .1em; text-transform: uppercase; color: var(--texte-doux); margin: 12px 0 4px; }
+.actu-edition .liste li { gap: 4px; }
+.actu-texte { margin: 0; font-size: .95rem; text-wrap: pretty; }
+.actu-pourmoi { margin: 0; font-size: .9rem; color: var(--cyan-vif); }
+.actu-pourmoi::before { content: "Pour vous : "; color: var(--texte-doux); }
+.actu-source { font-size: .8rem; color: var(--texte-doux); }

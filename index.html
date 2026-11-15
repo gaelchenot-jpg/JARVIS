@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preload" href="fonts/unbounded-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="css/jarvis.css?v=20">
+<link rel="stylesheet" href="css/jarvis.css?v=21">
 </head>
 <body data-state="idle">
 
@@ -167,12 +167,21 @@
       </div>
     </section>
 
-    <section class="panneau" aria-label="Publications à venir">
+    <section class="panneau actu-ia" aria-label="Actu IA">
+      <h2>Actu IA</h2>
+      <div id="actuContenu"><p class="vide-texte">La première édition arrive avec le briefing de 8 h 30.</p></div>
+      <div class="briefing-actions">
+        <button type="button" class="btn btn-ligne btn-petit" id="effacerActu">Effacer les anciennes infos</button>
+        <span class="retour" id="retourActu" role="status"></span>
+      </div>
+    </section>
+
+    <section class="panneau publications" aria-label="Publications à venir">
       <h2>Publications</h2>
       <ul class="liste" id="postsListe"><li class="vide">Rien de prévu pour l'instant.</li></ul>
     </section>
 
-    <section class="panneau" aria-label="À valider">
+    <section class="panneau a-valider" aria-label="À valider">
       <h2>À valider</h2>
       <ul class="liste" id="faireListe"><li class="vide">Rien en attente.</li></ul>
     </section>
@@ -249,6 +258,6 @@
   </form>
 </dialog>
 
-<script src="js/app.js?v=20" defer></script>
+<script src="js/app.js?v=21" defer></script>
 </body>
 </html>

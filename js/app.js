@@ -221,6 +221,7 @@
     if (/^(retiens|souviens[- ]toi|n.oublie pas|memorise|note)\b/.test(n)) return "retenir";
     if (/(qu.est[- ]ce que tu sais (sur|de) moi|que sais[- ]tu (sur|de) moi|tu te souviens de quoi|ta memoire)/.test(n)) return "memoire";
     if (/(ecri|redige|reponds|prepare|invente|propose)/.test(n)) return null; // demande de création : le cerveau s'en charge
+    if (/(actu(alite)?s? (de l.)?(ia|intelligence)|nouveau(x)? skills?|news (de l.)?ia|quoi de neuf (en|dans l.|cote) ?ia)/.test(n)) return "actu-ia";
     if (/(briefing|quoi de neuf|programme du jour|resume du jour|point du matin|fais (moi )?le point)/.test(n)) return "briefing";
     if (/(mail|courrier|boite)/.test(n) && /(lis|resume|quoi|combien|nouveau|important|urgent|recu|j'ai|ai-je|y a)/.test(n)) return "mails";
     if (/(post|publication|reseau|linkedin|facebook|buffer|fiche google)/.test(n) && /(quel|prochain|a venir|programme|prevu|cette semaine|demain|lis)/.test(n)) return "posts";
@@ -298,6 +299,7 @@
     if (intention === "mails") return texteMails();
     if (intention === "posts") return textePosts();
     if (intention.startsWith("agenda")) return texteAgenda(intention);
+    if (intention === "actu-ia") return texteActu();
     return texteBriefing();
   }
 
@@ -476,7 +478,7 @@
 
   function valider(b) {
     if (!b || typeof b !== "object") throw new Error("Ce fichier n'est pas un briefing Jarvis.");
-    if (!b.mails && !b.publications && !b.a_valider) throw new Error("Ce fichier ne contient ni mails, ni publications, ni éléments à valider.");
+    if (!b.mails && !b.publications && !b.a_valider && !b.actu_ia) throw new Error("Ce fichier ne contient ni mails, ni publications, ni éléments à valider.");
     return b;
   }
 
@@ -507,7 +509,7 @@
     return baseGmail(m) + "#label/" + encodeURIComponent(lib).replace(/%20/g, "+");
   }
   function afficherBriefing() {
-    tableauMails(); afficherAgenda();
+    tableauMails(); afficherAgenda(); archiverActu(); afficherActu();
     const maj = $("#briefingMaj");
     if (!briefing) { maj.textContent = "Aucun briefing chargé"; return; }
     const g = dateSure(briefing.genere_le);
@@ -640,6 +642,71 @@
       `${portee === "agenda-semaine" ? nomJour(e.d) + ", " : ""}${e.journee ? "toute la journée" : "à " + fmtHeure.format(e.d).replace(":", " h ")} : ${e.titre}${e.lieu ? ", à " + e.lieu : ""}.`).join(" ");
   }
 
+  /* ---------- Actu IA : éditions du matin, gardées sur l'appareil jusqu'au nettoyage ---------- */
+  let actus = store.get("actuIA", []);
+  const lienSur = (u) => { try { const x = new URL(u); return x.protocol === "https:" ? x.href : null; } catch { return null; } };
+  function archiverActu() {
+    const a = briefing && briefing.actu_ia;
+    if (!a || typeof a !== "object" || !(Array.isArray(a.skills) || Array.isArray(a.infos))) return;
+    const date = String(a.date || (briefing.genere_le || "").slice(0, 10) || jourCle(new Date())).slice(0, 10);
+    if (store.get("actuEffacees", []).includes(date)) return;
+    actus = actus.filter((e) => e.date !== date);
+    actus.push({ date, skills: (a.skills || []).slice(0, 8), infos: (a.infos || []).slice(0, 8) });
+    actus.sort((x, y) => (x.date < y.date ? 1 : -1));
+    actus = actus.slice(0, 14);
+    store.set("actuIA", actus);
+  }
+  function elementActu(x, avecPourMoi) {
+    return li((e) => {
+      const lien = lienSur(x.lien);
+      const t = document.createElement(lien ? "a" : "strong"); t.textContent = x.nom || x.titre || "Sans titre";
+      if (lien) { t.className = "lien-mail"; t.href = lien; t.target = "_blank"; t.rel = "noopener"; t.style.fontWeight = "700"; }
+      e.appendChild(t);
+      if (x.resume) { const p = document.createElement("p"); p.className = "actu-texte"; p.textContent = x.resume; e.appendChild(p); }
+      if (avecPourMoi && x.pour_moi) { const p = document.createElement("p"); p.className = "actu-pourmoi"; p.textContent = x.pour_moi; e.appendChild(p); }
+      if (x.source) { const sp = document.createElement("span"); sp.className = "actu-source"; sp.textContent = x.source; e.appendChild(sp); }
+    });
+  }
+  function afficherActu() {
+    const box = $("#actuContenu"); if (!box) return;
+    box.innerHTML = "";
+    if (!actus.length) { const p = document.createElement("p"); p.className = "vide-texte"; p.textContent = "La prochaine édition arrive avec le briefing de 8 h 30."; box.appendChild(p); return; }
+    actus.forEach((ed, i) => {
+      const d = document.createElement("div"); d.className = "actu-edition" + (i ? " ancienne" : "");
+      const h = document.createElement("p"); h.className = "actu-date";
+      h.textContent = nomJour(new Date(ed.date + "T12:00:00"));
+      d.appendChild(h);
+      const bloc = (titre, liste, pourMoi, videTxt) => {
+        const r = document.createElement("p"); r.className = "actu-rubrique"; r.textContent = titre; d.appendChild(r);
+        const ul = document.createElement("ul"); ul.className = "liste";
+        if (liste.length) liste.forEach((x) => ul.appendChild(elementActu(x, pourMoi)));
+        else ul.appendChild(li((e) => { e.className = "vide"; e.textContent = videTxt; }));
+        d.appendChild(ul);
+      };
+      bloc("Nouveaux skills utiles", ed.skills || [], true, "Rien de nouveau qui vous concerne.");
+      bloc("L'essentiel d'hier", ed.infos || [], false, "Pas d'info marquante.");
+      box.appendChild(d);
+    });
+  }
+  function texteActu() {
+    if (!actus.length) return "Je n'ai pas encore d'actualité IA. La première édition arrive avec le briefing de 8 h 30.";
+    const ed = actus[0], sk = ed.skills || [], inf = ed.infos || [];
+    let t = sk.length ? `Côté nouveaux skills : ${sk.map((x) => (x.nom || x.titre) + ". " + (x.resume || "")).join(" ")} ` : "Pas de nouveau skill utile pour vous. ";
+    if (inf.length) t += `L'essentiel d'hier : ${inf.map((x) => (x.titre || "") + ". " + (x.resume || "")).join(" ")}`;
+    return t.trim();
+  }
+  $("#effacerActu").addEventListener("click", () => {
+    const out = $("#retourActu"); out.className = "retour ok";
+    if (actus.length <= 1) { out.textContent = "Rien d'ancien à effacer."; }
+    else {
+      const eff = store.get("actuEffacees", []).concat(actus.slice(1).map((e) => e.date)).slice(-60);
+      store.set("actuEffacees", eff);
+      const n = actus.length - 1; actus = actus.slice(0, 1); store.set("actuIA", actus); afficherActu();
+      out.textContent = `${pluriel(n, "ancienne édition effacée", "anciennes éditions effacées")}.`;
+    }
+    setTimeout(() => { out.textContent = ""; }, 5000);
+  });
+
   /* ---------- Ajout à Google Agenda (dicté) ----------
      Le cerveau transforme la phrase en rendez-vous ; Jarvis prépare la fiche Google Agenda
      déjà remplie, et Gaël la valide d'un toucher (aucune clé, aucun accès à son compte). */
@@ -734,6 +801,8 @@
     t += texteMails() + " " + textePosts();
     const av = briefing.a_valider || [];
     if (av.length) t += ` Vous avez ${pluriel(av.length, "chose", "choses")} à valider.`;
+    const ai = briefing.actu_ia;
+    if (ai && ((ai.skills || []).length || (ai.infos || []).length)) t += " L'actu IA du jour est prête : dites « actu IA » pour que je vous la lise.";
     return t;
   }
 
