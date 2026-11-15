@@ -327,7 +327,7 @@
      puis les « flash-lite ». Si l'un est saturé (503) ou hors quota (429), on passe au suivant. */
   async function modelesGemini() {
     if (cfg.modele) return [cfg.modele];
-    const memo = store.get("modelesAutoGemini", null);
+    const memo = store.get("modelesAutoGemini2", null);
     if (memo && Array.isArray(memo.l) && memo.l.length && Date.now() - memo.t < 3 * 864e5) return memo.l;
     let r;
     try { r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=" + encodeURIComponent(cfg.cle), { signal: AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined }); }
@@ -339,9 +339,9 @@
       .map((m) => m.name.replace("models/", ""));
     const version = (n) => parseFloat(n.split("-")[1]) || 0;
     const tri = (re) => noms.filter((n) => re.test(n)).sort((a, b) => version(b) - version(a));
-    const l = [...tri(/^gemini-\d+(\.\d+)?-flash$/), ...tri(/^gemini-\d+(\.\d+)?-flash-lite$/)];
-    ["gemini-flash-latest", "gemini-flash-lite-latest"].forEach((n) => { if (noms.includes(n) || !l.length) l.push(n); });
-    store.set("modelesAutoGemini", { l, t: Date.now() });
+    const l = [...tri(/^gemini-\d+(\.\d+)?-flash-lite$/), ...tri(/^gemini-\d+(\.\d+)?-flash$/)]; // le plus rapide d'abord
+    ["gemini-flash-lite-latest", "gemini-flash-latest"].forEach((n) => { if (noms.includes(n) || !l.length) l.push(n); });
+    store.set("modelesAutoGemini2", { l, t: Date.now() });
     return l;
   }
   async function lireFlux(r, extraire, surMorceau) {
@@ -385,7 +385,7 @@
         }
       } catch (e) { if (e.name === "AbortError") throw e; throw new Error("Je n'arrive pas à joindre Google. Vérifiez la connexion internet."); }
       if (r.ok) {
-        if (i > 0 && !cfg.modele) store.set("modelesAutoGemini", { l: [liste[i], ...liste.filter((x) => x !== liste[i])], t: Date.now() }); // celui qui marche passe en tête
+        if (i > 0 && !cfg.modele) store.set("modelesAutoGemini2", { l: [liste[i], ...liste.filter((x) => x !== liste[i])], t: Date.now() }); // celui qui marche passe en tête
         const t = await lireFlux(r, (d) => (d.candidates?.[0]?.content?.parts || []).filter((p) => !p.thought).map((p) => p.text || "").join(""), surMorceau);
         if (!t) throw new Error("Je n'ai pas trouvé quoi répondre. Pouvez-vous reformuler ?");
         return t;
@@ -393,7 +393,7 @@
       derniere = r.status;
       if (![429, 500, 502, 503, 504, 404].includes(r.status)) break; // clé refusée, etc. : inutile d'insister
     }
-    if (derniere === 404 && !cfg.modele) store.set("modelesAutoGemini", null);
+    if (derniere === 404 && !cfg.modele) store.set("modelesAutoGemini2", null);
     if (derniere >= 500) throw new Error("Les serveurs de Google sont saturés en ce moment. Réessayez dans une minute.");
     throw erreurHttp(derniere);
   }
@@ -595,7 +595,7 @@
     cfg.surnom = $("#surnom").value.trim() || "Gaël";
     cfg.vitesse = parseFloat($("#vitesse").value); cfg.hauteur = parseFloat($("#hauteur").value);
     cfg.voix = $("#voix").value;
-    if (ancien !== cfg.fournisseur + cfg.cle) { store.set("modelesAutoGemini", null); store.set("modeleAutoGroq", null); }
+    if (ancien !== cfg.fournisseur + cfg.cle) { store.set("modelesAutoGemini2", null); store.set("modeleAutoGroq", null); }
     ["fournisseur", "cle", "modele", "surnom", "vitesse", "hauteur", "voix"].forEach((k) => store.set(k, cfg[k]));
   }
   $("#ouvrirReglages").addEventListener("click", () => { remplirReglages(); dlg.showModal(); });

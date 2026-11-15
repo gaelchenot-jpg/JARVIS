@@ -1,6 +1,6 @@
 /* Jarvis : garde l'appli en mémoire pour qu'elle s'ouvre même sans réseau.
    Les appels au cerveau (Gemini, Groq) ne sont jamais mis en cache. */
-const VERSION = "jarvis-v7";
+const VERSION = "jarvis-v8";
 const FICHIERS = ["./", "index.html", "css/jarvis.css", "js/app.js", "manifest.webmanifest", "briefing-exemple.json",
   "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png",
   "fonts/unbounded-latin-500-normal.woff2", "fonts/unbounded-latin-700-normal.woff2",
