@@ -275,3 +275,14 @@ fieldset > .btn { align-self: flex-start; }
 @media (prefers-reduced-motion: reduce) {
   .fond-cercles, .anneau, .msg, .reglages[open], .disque-halo { animation: none !important; }
 }
+
+/* Liens vers Gmail dans le briefing */
+.lien-mail { color: inherit; text-decoration: underline; text-decoration-color: var(--cyan-sombre); text-underline-offset: 4px; overflow-wrap: anywhere; }
+.lien-mail:hover, .lien-mail:focus-visible { color: var(--cyan-vif); text-decoration-color: var(--cyan); }
+.lien-dossier { font-weight: 700; }
+.lien-dossier::after { content: " ›"; color: var(--cyan); }
+.sous-liste { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 0; }
+.sous-liste li { padding: 6px 0 6px 12px; border-top: 0 !important; border-left: 1px solid var(--trame); font-size: .9rem; color: var(--texte-doux); }
+.sous-liste a, .sous-liste span { display: block; min-height: 28px; }
+.sous-liste li.urgent { border-left-color: var(--rouge); color: var(--texte); }
+.sous-liste .urgent strong::before { content: none; }

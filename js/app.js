@@ -474,6 +474,21 @@
   }
   function vide(ul, txt) { ul.innerHTML = ""; ul.appendChild(li((e) => { e.className = "vide"; e.textContent = txt; })); }
 
+  /* Liens vers Gmail : construits ici à partir d'identifiants, jamais d'une adresse fournie telle quelle */
+  function baseGmail(m) {
+    const compte = typeof m.compte === "string" && /^[^\s@"<>]+@[^\s@"<>]+$/.test(m.compte) ? m.compte : "";
+    return "https://mail.google.com/mail/" + (compte ? "?authuser=" + encodeURIComponent(compte) : "u/0/");
+  }
+  function lienGmailMail(m, x) {
+    const id = String(x.id_fil || x.id || "");
+    return /^[A-Za-z0-9_-]{6,64}$/.test(id) ? baseGmail(m) + "#all/" + id : null;
+  }
+  function lienGmailDossier(m, c) {
+    const lib = typeof c.libelle === "string" ? c.libelle.trim() : "";
+    if (!lib) return null;
+    if (/^(INBOX|inbox)$/.test(lib)) return baseGmail(m) + "#inbox";
+    return baseGmail(m) + "#label/" + encodeURIComponent(lib).replace(/%20/g, "+");
+  }
   function afficherBriefing() {
     tableauMails();
     const maj = $("#briefingMaj");
@@ -487,9 +502,30 @@
     const ulM = $("#mailsListe"); ulM.innerHTML = "";
     const cats = Array.isArray(m.categories) ? m.categories : [];
     cats.forEach((c) => {
-      const urgents = (c.elements || []).filter((x) => x.urgent);
-      ulM.appendChild(li((e) => ligne(e, c.nom || "Autres", c.nombre ?? (c.elements || []).length,
-        (c.elements || []).slice(0, 3).map((x) => `${x.de || "?"} : ${x.objet || x.but || ""}`).join(" · "), urgents.length ? "urgent" : "")));
+      const elems = Array.isArray(c.elements) ? c.elements : [];
+      ulM.appendChild(li((e) => {
+        if (elems.some((x) => x.urgent)) e.classList.add("urgent");
+        const t = document.createElement("div"); t.className = "ligne-titre";
+        const lienCat = lienGmailDossier(m, c);
+        const titre = document.createElement(lienCat ? "a" : "strong");
+        titre.textContent = c.nom || "Autres";
+        if (lienCat) { titre.href = lienCat; titre.target = "_blank"; titre.rel = "noopener"; titre.className = "lien-mail lien-dossier"; titre.setAttribute("aria-label", `Ouvrir le dossier ${c.nom || ""} dans Gmail`); }
+        const n = document.createElement("span"); n.className = "compte"; n.textContent = c.nombre ?? elems.length;
+        t.append(titre, n); e.appendChild(t);
+        if (elems.length) {
+          const sous = document.createElement("ul"); sous.className = "sous-liste";
+          elems.slice(0, 6).forEach((x) => {
+            const l = document.createElement("li"); if (x.urgent) l.className = "urgent";
+            const lien = lienGmailMail(m, x);
+            const a = document.createElement(lien ? "a" : "span");
+            a.textContent = `${x.de || "?"} : ${x.objet || x.but || ""}`;
+            if (lien) { a.href = lien; a.target = "_blank"; a.rel = "noopener"; a.className = "lien-mail"; }
+            l.appendChild(a); sous.appendChild(l);
+          });
+          if (elems.length > 6) { const l = document.createElement("li"); l.className = "ligne-meta"; l.textContent = `et ${elems.length - 6} autres`; sous.appendChild(l); }
+          e.appendChild(sous);
+        }
+      }));
     });
     if (m.pubs_ecartees) ulM.appendChild(li((e) => ligne(e, "Pubs et newsletters écartées", m.pubs_ecartees, m.pubs_resume || "")));
 

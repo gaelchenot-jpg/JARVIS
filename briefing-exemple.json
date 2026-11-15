@@ -6,8 +6,8 @@
     "pubs_ecartees": 14,
     "pubs_resume": "Promos, newsletters outils web, une relance de salon.",
     "categories": [
-      { "nom": "Prospects et clients", "nombre": 2, "elements": [
-        { "de": "Boulangerie exemple", "objet": "Demande de devis site vitrine", "but": "devis", "urgent": true },
+      { "nom": "Prospects et clients", "libelle": "Clients", "nombre": 2, "elements": [
+        { "de": "Boulangerie exemple", "objet": "Demande de devis site vitrine", "but": "devis", "urgent": true, "id_fil": "18c2f0a1b2c3d4e5" },
         { "de": "Gîte exemple", "objet": "Merci pour la fiche Google", "but": "remerciement" } ] },
       { "nom": "Administratif", "nombre": 1, "elements": [
         { "de": "Hébergeur exemple", "objet": "Facture de novembre", "but": "à payer" } ] },
