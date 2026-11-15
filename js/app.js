@@ -614,5 +614,10 @@
   briefingParDefaut();
   if (!Reco) consigne("Ce navigateur ne sait pas écouter. Écrivez-moi ci-dessous, ou ouvrez Jarvis dans Chrome ou Edge.");
   else if (!cfg.cle) consigne("Touchez le cercle et parlez. Pour discuter librement, ajoutez d'abord la clé dans les réglages.");
-  if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register("sw.js").catch(() => {});
+  if ("serviceWorker" in navigator && location.protocol !== "file:") {
+    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((r) => r.update()).catch(() => {});
+    // Quand une nouvelle version prend la main, on recharge une fois pour ne jamais mélanger deux versions
+    let recharge = false; const avait = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener("controllerchange", () => { if (avait && !recharge) { recharge = true; location.reload(); } });
+  }
 })();
