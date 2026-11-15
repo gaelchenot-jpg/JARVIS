@@ -111,14 +111,16 @@ body[data-state="listening"] .marque-etat, body[data-state="speaking"] .marque-e
 .arc-halo { stroke: rgb(22 224 220 / .3); stroke-width: 12; }
 .arc-fin { stroke: var(--rouge); stroke-width: 3; }
 .pointilles { stroke: var(--cyan); stroke-width: 5; stroke-dasharray: 2 7; opacity: .8; }
-.cellule { fill: rgb(22 224 220 / .22) !important; stroke: var(--cyan); stroke-width: 1; }
-.cellule-vive { fill: rgb(140 255 250 / .65) !important; filter: drop-shadow(0 0 5px var(--cyan)); }
+.cellule { fill: rgb(140 255 250 / .55) !important; stroke: var(--cyan-vif); stroke-width: 1; filter: drop-shadow(0 0 4px var(--cyan)); }
+.cellule-vive { fill: rgb(255 255 255 / .85) !important; }
+.bobine { stroke: #04343a; stroke-width: 1.6; }
+.lentille { fill: url(#gradLentille) !important; filter: drop-shadow(0 0 14px #8cfffa) drop-shadow(0 0 30px var(--cyan)); opacity: .9; }
 .ailes path { stroke: var(--cyan); stroke-width: 3; stroke-dasharray: 3 5; opacity: .7; }
 .disque { fill: url(#gradCoeur) !important; stroke: var(--cyan-vif); stroke-width: 2.5; }
 .disque-halo { stroke: rgb(22 224 220 / .3); stroke-width: 10; }
-.hexa { fill: none; stroke: var(--cyan-vif); stroke-width: 2; filter: drop-shadow(0 0 6px var(--cyan)); }
-.hexa-interne { fill: none; stroke: var(--cyan-sombre); stroke-width: 1; stroke-dasharray: 2 4; }
-.onde rect { fill: var(--cyan-vif); transform-box: fill-box; transform-origin: center; transform: scaleY(.15); transition: transform 120ms linear; }
+.hexa { fill: none; stroke: #ffffff; stroke-width: 2.5; filter: drop-shadow(0 0 6px var(--cyan)); }
+.hexa-interne { fill: none; stroke: #0b6a70; stroke-width: 1.2; stroke-dasharray: 2 4; }
+.onde rect { fill: #03363b; transform-box: fill-box; transform-origin: center; transform: scaleY(.15); transition: transform 120ms linear; }
 
 .anneau { transform-origin: 200px 200px; transform-box: view-box; }
 .anneau-graduations { animation: tourne 120s linear infinite; }
@@ -128,7 +130,7 @@ body[data-state="listening"] .marque-etat, body[data-state="speaking"] .marque-e
 @keyframes tourne { to { transform: rotate(360deg); } }
 @keyframes pulse { 50% { opacity: .45; } }
 
-.noyau-texte { position: absolute; inset: 0; display: grid; place-items: center; font: 500 .95rem/1 var(--titre); letter-spacing: .14em; text-transform: uppercase; pointer-events: none; padding-top: 66px; color: var(--cyan-vif); text-shadow: var(--lueur); }
+.noyau-texte { position: absolute; inset: 0; display: grid; place-items: center; font: 500 .95rem/1 var(--titre); letter-spacing: .14em; text-transform: uppercase; pointer-events: none; padding-top: 66px; color: #022a2f; font-weight: 700; text-shadow: 0 0 8px #fff, 0 0 2px #fff; }
 
 /* États */
 body[data-state="listening"] .anneau-arcs { animation-duration: 4s; }

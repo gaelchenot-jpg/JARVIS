@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preload" href="fonts/unbounded-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="css/jarvis.css?v=28">
+<link rel="stylesheet" href="css/jarvis.css?v=29">
 </head>
 <body data-state="idle">
 
@@ -53,9 +53,15 @@
       <svg viewBox="0 0 400 400" aria-hidden="true">
         <defs>
           <radialGradient id="gradCoeur" cx="50%" cy="50%" r="50%">
-            <stop offset="0" stop-color="#8cfffa" stop-opacity=".55"/>
-            <stop offset=".5" stop-color="#16e0dc" stop-opacity=".22"/>
-            <stop offset="1" stop-color="#031c20" stop-opacity="1"/>
+            <stop offset="0" stop-color="#ffffff" stop-opacity=".95"/>
+            <stop offset=".28" stop-color="#bffcff" stop-opacity=".8"/>
+            <stop offset=".6" stop-color="#16e0dc" stop-opacity=".45"/>
+            <stop offset="1" stop-color="#063a40" stop-opacity="1"/>
+          </radialGradient>
+          <radialGradient id="gradLentille" cx="50%" cy="50%" r="50%">
+            <stop offset="0" stop-color="#ffffff" stop-opacity="1"/>
+            <stop offset=".7" stop-color="#cffcff" stop-opacity=".9"/>
+            <stop offset="1" stop-color="#16e0dc" stop-opacity=".6"/>
           </radialGradient>
         </defs>
         <g class="anneau anneau-graduations">
@@ -79,6 +85,7 @@
         </g>
         <circle cx="200" cy="200" r="96" class="disque-halo" fill="none"/>
         <circle cx="200" cy="200" r="96" class="disque"/>
+        <circle cx="200" cy="200" r="58" class="lentille"/>
         <polygon class="hexa" points=""/>
         <polygon class="hexa-interne" points=""/>
         <g class="onde" id="onde"></g>
@@ -275,6 +282,6 @@
   </form>
 </dialog>
 
-<script src="js/app.js?v=28" defer></script>
+<script src="js/app.js?v=29" defer></script>
 </body>
 </html>

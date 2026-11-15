@@ -99,16 +99,23 @@
       setTimeout(balayer, vitesse());
     })();
     const c = $("#cellules");
-    for (let i = 0; i < 16; i++) {
-      const a1 = (i / 16) * Math.PI * 2 + 0.06, a2 = ((i + 1) / 16) * Math.PI * 2 - 0.06;
-      const [x1, y1] = pt(122, a1), [x2, y2] = pt(122, a2), [x3, y3] = pt(103, a2), [x4, y4] = pt(103, a1);
+    for (let i = 0; i < 24; i++) {
+      const a1 = (i / 24) * Math.PI * 2 + 0.05, a2 = ((i + 1) / 24) * Math.PI * 2 - 0.05;
+      const [x1, y1] = pt(124, a1), [x2, y2] = pt(124, a2), [x3, y3] = pt(98, a2), [x4, y4] = pt(98, a1);
       const cel = document.createElementNS(NS, "path");
-      cel.setAttribute("d", `M${x1} ${y1} A122 122 0 0 1 ${x2} ${y2} L${x3} ${y3} A103 103 0 0 0 ${x4} ${y4} Z`);
-      cel.setAttribute("class", "cellule" + (i % 4 === 0 ? " cellule-vive" : "")); c.appendChild(cel);
+      cel.setAttribute("d", `M${x1} ${y1} A124 124 0 0 1 ${x2} ${y2} L${x3} ${y3} A98 98 0 0 0 ${x4} ${y4} Z`);
+      cel.setAttribute("class", "cellule" + (i % 6 === 0 ? " cellule-vive" : "")); c.appendChild(cel);
+      // bobinage : petits traits en travers de chaque cellule
+      for (const rr of [104, 111, 118]) {
+        const [bx1, by1] = pt(rr, a1 + 0.02), [bx2, by2] = pt(rr, a2 - 0.02);
+        const l = document.createElementNS(NS, "line");
+        l.setAttribute("x1", bx1); l.setAttribute("y1", by1); l.setAttribute("x2", bx2); l.setAttribute("y2", by2);
+        l.setAttribute("class", "bobine"); c.appendChild(l);
+      }
     }
     const hexa = (r, rot) => Array.from({ length: 6 }, (_, i) => pt(r, rot + (i * Math.PI) / 3).map((v) => v.toFixed(1)).join(",")).join(" ");
-    document.querySelector(".hexa").setAttribute("points", hexa(80, 0));
-    document.querySelector(".hexa-interne").setAttribute("points", hexa(70, 0));
+    document.querySelector(".hexa").setAttribute("points", hexa(62, Math.PI / 6));
+    document.querySelector(".hexa-interne").setAttribute("points", hexa(52, Math.PI / 6));
   })();
   const barres = [];
   (function onde() {
