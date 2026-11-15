@@ -551,7 +551,18 @@
     ajouterMessage("jarvis", t);
     await parler(t);
   });
-  $("#chargerBriefing").addEventListener("click", () => $("#fichierBriefing").click());
+  $("#chargerBriefing").addEventListener("click", async () => {
+    // Avec un code : on télécharge le briefing chiffré du matin. Sans code : on ouvre les réglages au bon endroit.
+    if (!store.get("codeBriefing", "")) {
+      remplirReglages(); dlg.showModal();
+      const c = $("#codeBriefing"); c.scrollIntoView({ block: "center" }); c.focus();
+      $("#retourCode").textContent = "Collez votre code ici, puis touchez « Charger le briefing ».";
+      return;
+    }
+    consigne("Je récupère le briefing…");
+    try { if (await chargerBriefingChiffre(true)) consigne("Briefing à jour. Touchez « Briefing » pour que je vous le lise."); }
+    catch (e) { consigne(e.message, true); }
+  });
   $("#fichierBriefing").addEventListener("change", async (e) => {
     const f = e.target.files[0]; if (!f) return;
     try { nouveauBriefing(JSON.parse(await f.text()), "depuis le fichier"); }
