@@ -284,9 +284,10 @@
     return null;
   }
 
-  async function traiter(texte) {
-    ajouterMessage("vous", texte);
-    const intention = intentionLocale(texte);
+  async function traiter(texte, piece) {
+    const pVous = ajouterMessage("vous", texte);
+    if (piece) { const im = document.createElement("img"); im.className = "msg-vignette"; im.alt = piece.video ? "Vidéo envoyée" : "Photo envoyée"; im.src = piece.vignette; pVous.before(im); }
+    const intention = piece ? null : intentionLocale(texte);
     if (intention === "stop") { taire(); consigne("D'accord, je me tais."); return; }
     if (intention === "retenir") {
       const fait = texte.replace(/^\s*(retiens|souviens[- ]toi|n.oublie pas|mémorise|memorise|note)\s*(bien\s*)?(que|de|qu')?\s*/i, "");
@@ -320,7 +321,7 @@
         const re = /[^.!?…\n]*[.!?…\n]+(?=\s|$)/g; re.lastIndex = dit; let m;
         while ((m = re.exec(recu))) { if (m[0].trim().length > 1) diseur.ajouter(m[0]); dit = re.lastIndex; }
       };
-      try { reponse = await demanderAuCerveau(texte, surMorceau); }
+      try { reponse = await demanderAuCerveau(texte, surMorceau, piece ? { piece, sansWeb: true } : {}); }
       catch (err) {
         if (err.name === "AbortError") { if (recu) { memoriser("user", texte); memoriser("model", recu); } return; }
         setEtat("idle");
@@ -332,7 +333,7 @@
       }
       if (!p) surMorceau(reponse);
       if (recu.slice(dit).trim()) diseur.ajouter(recu.slice(dit));
-      memoriser("user", texte); memoriser("model", reponse);
+      memoriser("user", (piece ? (piece.video ? "[vidéo envoyée] " : "[photo envoyée] ") : "") + texte); memoriser("model", reponse);
       if (etat === "thinking") setEtat("idle");
       await diseur.terminer();
     }
@@ -368,6 +369,7 @@
       "Tes réponses sont lues à voix haute : phrases courtes, pas de listes à puces, pas de markdown, pas d'émojis. Trois ou quatre phrases maximum, sauf si on te demande un texte long (un post, un mail) : dans ce cas tu l'écris en entier.",
       "Tu peux chercher sur internet quand la question porte sur l'actualité, la météo, des prix, des horaires ou des faits récents : dans ce cas, cite en quelques mots ta source (le nom du site) sans lire d'adresse web.",
       "Tu n'as pas accès directement aux mails, au calendrier ni aux réseaux sociaux. Si on te pose une question sur les mails, l'agenda ou les publications du jour, propose de dire « lis-moi le briefing ». Pour ajouter un rendez-vous, il suffit de dire par exemple « ajoute à l'agenda dentiste mardi à 14 h ».",
+      "Gaël peut t'envoyer des photos ou des vidéos (sous forme d'images extraites) : décris ce que tu vois concrètement et réponds à sa question.",
       "Tu n'envoies et ne publies jamais rien toi-même. Si tu rédiges un mail ou un post, précise que c'est un brouillon à relire.",
       "Si tu ne sais pas, dis-le simplement plutôt que d'inventer.",
     ].filter(Boolean).join("\n");
@@ -389,7 +391,8 @@
     const morceau = surMorceau ? (t) => { premier = true; surMorceau(t); } : () => { premier = true; };
     const web = !options.sansWeb && besoinWeb(question);
     if (web && etat === "thinking") consigne("Je cherche sur internet…");
-    try { return await (cfg.fournisseur === "groq" ? appelGroq(passe, question, morceau, ctrl.signal, web) : appelGemini(passe, question, morceau, ctrl.signal, web)); }
+    if (options.piece && etat === "thinking") consigne(options.piece.video ? "Je regarde la vidéo…" : "Je regarde la photo…");
+    try { return await (cfg.fournisseur === "groq" ? appelGroq(passe, question, morceau, ctrl.signal, web, options.piece) : appelGemini(passe, question, morceau, ctrl.signal, web, options.piece)); }
     catch (e) {
       if (tropLong) throw new Error("Google met trop de temps à répondre. Vérifiez la connexion, puis réessayez.");
       throw e;
@@ -442,10 +445,15 @@
     }
     return tout.trim();
   }
-  async function appelGemini(passe, question, surMorceau, signal, web) {
+  async function appelGemini(passe, question, surMorceau, signal, web, piece) {
     const liste = await modelesGemini();
     const contents = passe.map((m) => ({ role: m.role === "user" ? "user" : "model", parts: [{ text: m.texte }] }));
-    contents.push({ role: "user", parts: [{ text: question }] });
+    const parts = [{ text: question }];
+    if (piece) {
+      if (piece.video && piece.videoB64) parts.push({ inline_data: { mime_type: piece.videoMime, data: piece.videoB64 } });
+      else piece.images.forEach((u) => parts.push({ inline_data: { mime_type: "image/jpeg", data: u.split(",")[1] } }));
+    }
+    contents.push({ role: "user", parts });
     const sansReglage = store.get("geminiSansReglage", {});
     const corps = (modele) => {
       const generationConfig = { temperature: 0.7, maxOutputTokens: 2048 };
@@ -498,7 +506,17 @@
     store.set("modeleAutoGroq", { m, t: Date.now() });
     return m;
   }
-  async function appelGroq(passe, question, surMorceau, signal, web) {
+  async function appelGroq(passe, question, surMorceau, signal, web, piece) {
+    if (piece) {
+      const contenu = [{ type: "text", text: (piece.video ? `Voici ${piece.images.length} images extraites, dans l'ordre, d'une vidéo de ${Math.round(piece.duree)} secondes. ` : "") + question }]
+        .concat(piece.images.slice(0, 5).map((u) => ({ type: "image_url", image_url: { url: u } })));
+      let derniere = null;
+      for (const m of await modelesVisionGroq()) {
+        try { const t = await appelGroqModele(m, passe, contenu, surMorceau, signal, true); store.set("modeleVisionGroq", m); return t; }
+        catch (e) { if (e.name === "AbortError") throw e; derniere = e; }
+      }
+      throw new Error("Je n'arrive pas à regarder cette image pour le moment. Réessayez dans un instant." + (derniere && derniere.message ? " (" + derniere.message + ")" : ""));
+    }
     const normal = await modeleGroq();
     if (web) {
       // Les modèles « compound » de Groq cherchent eux-mêmes sur le web
@@ -509,19 +527,38 @@
     }
     return appelGroqModele(normal, passe, question, surMorceau, signal);
   }
-  async function appelGroqModele(modele, passe, question, surMorceau, signal) {
+  // Modèles Groq qui acceptent les images : celui qui a marché, puis ceux de la liste du compte
+  async function modelesVisionGroq() {
+    const l = [store.get("modeleVisionGroq", ""), "qwen/qwen3.8-27b"];
+    try {
+      const r = await fetch("https://api.groq.com/openai/v1/models", { headers: { Authorization: "Bearer " + cfg.cle } });
+      if (r.ok) ((await r.json()).data || []).map((x) => x.id).filter((id) => /vision|qwen3\.[6-9]|qwen3\.\d+-vl|llama-4|scout|maverick|gemma-?[34]/i.test(id)).forEach((id) => l.push(id));
+    } catch {}
+    return [...new Set(l.filter(Boolean))].slice(0, 4);
+  }
+  async function appelGroqModele(modele, passe, question, surMorceau, signal, vision) {
     const messages = [{ role: "system", content: consignesSysteme() }]
       .concat(passe.map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: m.texte })))
       .concat([{ role: "user", content: question }]);
-    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    const envoyer = (extra) => fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST", signal,
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + cfg.cle },
-      body: JSON.stringify({ model: modele, messages, temperature: 0.7, max_tokens: 1500, stream: true }),
+      body: JSON.stringify(Object.assign({ model: modele, messages, temperature: 0.7, max_tokens: 1500, stream: true }, extra)),
     });
-    if (!r.ok) { if (!modele.startsWith("groq/")) store.set("modeleAutoGroq", null); throw erreurHttp(r.status); }
-    const t = await lireFlux(r, (d) => d.choices?.[0]?.delta?.content, surMorceau);
-    if (!t) throw new Error("Je n'ai pas trouvé quoi répondre. Pouvez-vous reformuler ?");
-    return t;
+    const extra = vision && /qwen/i.test(modele) ? { reasoning_format: "hidden" } : {};
+    let r = await envoyer(extra);
+    if (r.status === 400 && Object.keys(extra).length) r = await envoyer({});
+    if (!r.ok) { if (!vision && !modele.startsWith("groq/")) store.set("modeleAutoGroq", null); throw erreurHttp(r.status); }
+    let enReflexion = false;
+    const filtre = vision ? (x) => { // on masque un éventuel bloc <think>…</think>
+      if (!x) return x;
+      if (x.includes("<think>")) { enReflexion = true; x = x.split("<think>")[0]; }
+      if (enReflexion) { if (!x.includes("</think>")) return ""; enReflexion = false; x = x.split("</think>").pop(); }
+      return x;
+    } : (x) => x;
+    const t = await lireFlux(r, (d) => filtre(d.choices?.[0]?.delta?.content), surMorceau);
+    if (!t || !t.trim()) throw new Error("Je n'ai pas trouvé quoi répondre. Pouvez-vous reformuler ?");
+    return t.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
   }
 
   /* ---------- Briefing ---------- */
@@ -1105,10 +1142,62 @@
   $("#modeConversation").checked = cfg.continu;
   $("#modeConversation").addEventListener("change", (e) => { cfg.continu = e.target.checked; store.set("continu", cfg.continu); });
 
+  /* ---------- Photos et vidéos : réduites sur l'appareil avant l'envoi au cerveau ---------- */
+  let piece = null;
+  function imageEnJpeg(source, largeurMax) {
+    const l = source.videoWidth || source.naturalWidth || source.width, h = source.videoHeight || source.naturalHeight || source.height;
+    const k = Math.min(1, largeurMax / Math.max(l, h));
+    const c = document.createElement("canvas"); c.width = Math.round(l * k); c.height = Math.round(h * k);
+    c.getContext("2d").drawImage(source, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", 0.82);
+  }
+  function chargerImage(fichier) {
+    return new Promise((ok, ko) => { const u = URL.createObjectURL(fichier), im = new Image(); im.onload = () => { ok(imageEnJpeg(im, 1280)); URL.revokeObjectURL(u); }; im.onerror = () => ko(new Error("Je n'arrive pas à ouvrir cette image.")); im.src = u; });
+  }
+  async function imagesDeVideo(fichier, n) {
+    const u = URL.createObjectURL(fichier), v = document.createElement("video");
+    v.muted = true; v.playsInline = true; v.preload = "auto"; v.src = u;
+    await new Promise((ok, ko) => { v.onloadedmetadata = ok; v.onerror = () => ko(new Error("Je n'arrive pas à lire cette vidéo.")); });
+    const duree = isFinite(v.duration) ? v.duration : 1, images = [];
+    for (let i = 0; i < n; i++) {
+      v.currentTime = Math.min(duree - 0.05, (duree * (i + 0.5)) / n);
+      await new Promise((ok) => { v.onseeked = ok; setTimeout(ok, 2500); });
+      images.push(imageEnJpeg(v, 768));
+    }
+    URL.revokeObjectURL(u);
+    return { images, duree };
+  }
+  const versB64 = (f) => new Promise((ok, ko) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1]); r.onerror = ko; r.readAsDataURL(f); });
+  function retirerPiece() { piece = null; $("#pieceApercu").hidden = true; $("#fichierPiece").value = ""; $("#champ").placeholder = "Ou écrivez ici…"; }
+  $("#joindre").addEventListener("click", () => $("#fichierPiece").click());
+  $("#pieceRetirer").addEventListener("click", retirerPiece);
+  $("#fichierPiece").addEventListener("change", async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const video = f.type.startsWith("video/");
+    $("#pieceApercu").hidden = false; $("#pieceImg").removeAttribute("src"); $("#pieceInfo").textContent = video ? "Je prépare la vidéo…" : "Je prépare la photo…";
+    try {
+      if (video) {
+        const { images, duree } = await imagesDeVideo(f, 5);
+        piece = { video: true, images, duree, vignette: images[Math.floor(images.length / 2)] };
+        // Gemini sait regarder la vidéo entière si elle est légère
+        if (cfg.fournisseur !== "groq" && f.size < 15e6) { piece.videoB64 = await versB64(f); piece.videoMime = f.type || "video/mp4"; }
+        $("#pieceInfo").textContent = `Vidéo de ${Math.round(duree)} s prête. Posez votre question, ou envoyez directement.`;
+      } else {
+        const img = await chargerImage(f);
+        piece = { video: false, images: [img], vignette: img };
+        $("#pieceInfo").textContent = "Photo prête. Posez votre question, ou envoyez directement.";
+      }
+      $("#pieceImg").src = piece.vignette; $("#champ").placeholder = "Votre question sur ce fichier…"; $("#champ").focus();
+    } catch (err) { piece = null; $("#pieceInfo").textContent = err.message || "Fichier illisible."; }
+  });
+
   $("#saisie").addEventListener("submit", (e) => {
     e.preventDefault();
-    const v = $("#champ").value.trim(); if (!v || etat === "thinking") return;
-    $("#champ").value = ""; traiter(v);
+    let v = $("#champ").value.trim(); if (etat === "thinking") return;
+    if (!v && !piece) return;
+    const p = piece;
+    if (!v) v = p.video ? "Que vois-tu dans cette vidéo ?" : "Que vois-tu sur cette photo ?";
+    $("#champ").value = ""; retirerPiece(); traiter(v, p);
   });
 
 

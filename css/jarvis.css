@@ -415,3 +415,14 @@ fieldset > .btn { align-self: flex-start; }
 @keyframes balise-led { 0%, 100% { opacity: 1; filter: brightness(1.2); } 50% { opacity: .35; filter: brightness(.8); } }
 @keyframes balise-scan { 0%, 55% { transform: translateX(-120%); } 85%, 100% { transform: translateX(120%); } }
 @media (prefers-reduced-motion: reduce) { .balise::after, .balise-led, .dock-btn.signal-jour svg { animation: none; } }
+
+/* Pièce jointe (photo ou vidéo) */
+.joindre { width: 48px; flex: none; background: transparent; border: 1px solid var(--cyan-sombre); display: grid; place-items: center; cursor: pointer; }
+.joindre:hover, .joindre:focus-visible { border-color: var(--cyan); box-shadow: var(--lueur); outline: none; }
+.joindre svg { width: 22px; stroke: var(--cyan-vif); stroke-width: 1.8; stroke-linejoin: round; }
+.piece-apercu { display: flex; align-items: center; gap: 12px; padding: 8px; margin-bottom: 8px; border: 1px solid var(--cyan); background: var(--voile); }
+.piece-apercu[hidden] { display: none; }
+.piece-apercu img { width: 56px; height: 56px; object-fit: cover; border: 1px solid var(--cyan-sombre); }
+.piece-info { flex: 1; min-width: 0; font-size: .9rem; color: var(--texte-doux); overflow-wrap: anywhere; }
+.piece-retirer { width: 40px; height: 40px; background: transparent; border: 1px solid var(--cyan-sombre); color: var(--cyan-vif); cursor: pointer; }
+.msg-vignette { display: block; max-width: 180px; max-height: 180px; margin: 0 0 6px auto; border: 1px solid var(--cyan); box-shadow: var(--lueur); }

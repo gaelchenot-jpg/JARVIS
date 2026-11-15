@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://generativelanguage.googleapis.com https://api.groq.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://generativelanguage.googleapis.com https://api.groq.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Jarvis</title>
@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preload" href="fonts/unbounded-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="css/jarvis.css?v=29">
+<link rel="stylesheet" href="css/jarvis.css?v=30">
 </head>
 <body data-state="idle">
 
@@ -167,7 +167,16 @@
     <section class="panneau dialogue" aria-label="Conversation">
       <h2>Conversation</h2>
       <ol class="fil" id="fil" aria-live="polite"></ol>
+      <div class="piece-apercu" id="pieceApercu" hidden>
+        <img id="pieceImg" alt="">
+        <span class="piece-info" id="pieceInfo"></span>
+        <button type="button" class="piece-retirer" id="pieceRetirer" aria-label="Retirer la pièce jointe">✕</button>
+      </div>
       <form class="saisie" id="saisie" autocomplete="off">
+        <button type="button" class="joindre" id="joindre" aria-label="Joindre une photo ou une vidéo">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" d="M4 8h3l2-3h6l2 3h3v11H4zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/></svg>
+        </button>
+        <input type="file" id="fichierPiece" accept="image/*,video/*" hidden>
         <label class="sr" for="champ">Écrire à Jarvis</label>
         <input id="champ" type="text" placeholder="Ou écrivez ici…" enterkeyhint="send">
         <button type="submit" class="envoyer" aria-label="Envoyer">
@@ -282,6 +291,6 @@
   </form>
 </dialog>
 
-<script src="js/app.js?v=29" defer></script>
+<script src="js/app.js?v=30" defer></script>
 </body>
 </html>
