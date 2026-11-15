@@ -221,7 +221,7 @@
     if (/^(retiens|souviens[- ]toi|n.oublie pas|memorise|note)\b/.test(n)) return "retenir";
     if (/(qu.est[- ]ce que tu sais (sur|de) moi|que sais[- ]tu (sur|de) moi|tu te souviens de quoi|ta memoire)/.test(n)) return "memoire";
     if (/(ecri|redige|reponds|prepare|invente|propose)/.test(n)) return null; // demande de création : le cerveau s'en charge
-    if (/(actu(alite)?s? (de l.)?(ia|intelligence)|nouveau(x)? skills?|news (de l.)?ia|quoi de neuf (en|dans l.|cote) ?ia)/.test(n)) return "actu-ia";
+    if (/(actu(alite)?s? (de l.)?(ia|intelligence)|actu(alite)?s? du jour|nouveau(x)? skills?|news (de l.)?ia|quoi de neuf (en|dans l.|cote) ?ia)/.test(n)) return "actu-ia";
     if (/(briefing|quoi de neuf|programme du jour|resume du jour|point du matin|fais (moi )?le point)/.test(n)) return "briefing";
     if (/(mail|courrier|boite)/.test(n) && /(lis|resume|quoi|combien|nouveau|important|urgent|recu|j'ai|ai-je|y a)/.test(n)) return "mails";
     if (/(post|publication|reseau|linkedin|facebook|buffer|fiche google)/.test(n) && /(quel|prochain|a venir|programme|prevu|cette semaine|demain|lis)/.test(n)) return "posts";
@@ -647,11 +647,11 @@
   const lienSur = (u) => { try { const x = new URL(u); return x.protocol === "https:" ? x.href : null; } catch { return null; } };
   function archiverActu() {
     const a = briefing && briefing.actu_ia;
-    if (!a || typeof a !== "object" || !(Array.isArray(a.skills) || Array.isArray(a.infos))) return;
+    if (!a || typeof a !== "object" || !(Array.isArray(a.skills) || Array.isArray(a.infos) || Array.isArray(a.infos_generales))) return;
     const date = String(a.date || (briefing.genere_le || "").slice(0, 10) || jourCle(new Date())).slice(0, 10);
     if (store.get("actuEffacees", []).includes(date)) return;
     actus = actus.filter((e) => e.date !== date);
-    actus.push({ date, skills: (a.skills || []).slice(0, 8), infos: (a.infos || []).slice(0, 8) });
+    actus.push({ date, skills: (a.skills || []).slice(0, 3), infos: (a.infos || []).slice(0, 3), generales: (a.infos_generales || []).slice(0, 3) });
     actus.sort((x, y) => (x.date < y.date ? 1 : -1));
     actus = actus.slice(0, 14);
     store.set("actuIA", actus);
@@ -684,15 +684,17 @@
         d.appendChild(ul);
       };
       bloc("Nouveaux skills utiles", ed.skills || [], true, "Rien de nouveau qui vous concerne.");
-      bloc("L'essentiel d'hier", ed.infos || [], false, "Pas d'info marquante.");
+      bloc("IA : l'essentiel d'hier", ed.infos || [], false, "Pas d'info marquante.");
+      bloc("Actualité générale", ed.generales || [], false, "Pas d'info marquante.");
       box.appendChild(d);
     });
   }
   function texteActu() {
     if (!actus.length) return "Je n'ai pas encore d'actualité IA. La première édition arrive avec le briefing de 8 h 30.";
-    const ed = actus[0], sk = ed.skills || [], inf = ed.infos || [];
+    const ed = actus[0], sk = ed.skills || [], inf = ed.infos || [], gen = ed.generales || [];
     let t = sk.length ? `Côté nouveaux skills : ${sk.map((x) => (x.nom || x.titre) + ". " + (x.resume || "")).join(" ")} ` : "Pas de nouveau skill utile pour vous. ";
-    if (inf.length) t += `L'essentiel d'hier : ${inf.map((x) => (x.titre || "") + ". " + (x.resume || "")).join(" ")}`;
+    if (inf.length) t += `En intelligence artificielle : ${inf.map((x) => (x.titre || "") + ". " + (x.resume || "")).join(" ")} `;
+    if (gen.length) t += `Dans l'actualité générale : ${gen.map((x) => (x.titre || "") + ". " + (x.resume || "")).join(" ")}`;
     return t.trim();
   }
   $("#effacerActu").addEventListener("click", () => {
@@ -802,7 +804,7 @@
     const av = briefing.a_valider || [];
     if (av.length) t += ` Vous avez ${pluriel(av.length, "chose", "choses")} à valider.`;
     const ai = briefing.actu_ia;
-    if (ai && ((ai.skills || []).length || (ai.infos || []).length)) t += " L'actu IA du jour est prête : dites « actu IA » pour que je vous la lise.";
+    if (ai && ((ai.skills || []).length || (ai.infos || []).length || (ai.infos_generales || []).length)) t += " L'actu IA du jour est prête : dites « actu IA » pour que je vous la lise.";
     return t;
   }
 
