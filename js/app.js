@@ -572,9 +572,14 @@
 
   /* ---------- Briefing chiffré publié chaque matin ---------- */
   const deB64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
-  const normCode = (c) => (c || "").toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/(.{5})(?=.)/g, "$1-");
+  const normCode = (c) => {
+    // Si on a collé toute une phrase (« Ton code : XXXXX-… »), on ne garde que le code lui-même
+    const m = (c || "").toUpperCase().match(/[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}/);
+    return (m ? m[0] : (c || "").toUpperCase()).replace(/[^A-Z0-9]/g, "").replace(/(.{5})(?=.)/g, "$1-");
+  };
+  const canonCode = (c) => (c || "").toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/[OQ]/g, "0").replace(/[IL]/g, "1").replace(/S/g, "5").replace(/Z/g, "2").replace(/B/g, "8").replace(/G/g, "6");
   async function dechiffrer(paquet, code) {
-    const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(code), "PBKDF2", false, ["deriveKey"]);
+    const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(canonCode(code)), "PBKDF2", false, ["deriveKey"]);
     const cle = await crypto.subtle.deriveKey({ name: "PBKDF2", salt: deB64(paquet.sel), iterations: 250000, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
     const clair = await crypto.subtle.decrypt({ name: "AES-GCM", iv: deB64(paquet.iv) }, cle, deB64(paquet.donnees));
     return JSON.parse(new TextDecoder().decode(clair));
@@ -645,6 +650,7 @@
     const out = $("#retourCode"); out.className = "retour"; out.textContent = "Chargement…";
     try {
       if (!store.get("codeBriefing", "")) throw new Error("Entrez d'abord le code.");
+      $("#codeBriefing").value = store.get("codeBriefing", "");
       const ok = await chargerBriefingChiffre(true);
       out.textContent = ok ? "Briefing chargé." : "Pas encore de briefing publié. Il arrivera demain matin."; out.className = ok ? "retour ok" : "retour";
     } catch (e) { out.textContent = e.message; out.className = "retour ko"; }
