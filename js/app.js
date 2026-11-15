@@ -585,8 +585,15 @@
   const fmtJourCle = new Intl.DateTimeFormat("fr-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Europe/Paris" });
   const fmtJourLong = new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/Paris" });
   const jourCle = (d) => fmtJourCle.format(d);
+  // Rendez-vous ajoutés depuis Jarvis : gardés à part, pour qu'un nouveau briefing ne les efface pas
+  let ajoutsAgenda = store.get("agendaAjouts", []);
   function evenements() {
-    const l = Array.isArray(briefing && briefing.agenda) ? briefing.agenda : [];
+    const base = Array.isArray(briefing && briefing.agenda) ? briefing.agenda : [];
+    const cle = (e) => norm(String(e.titre || "")).trim() + "|" + (dateSure(e.debut) ? dateSure(e.debut).getTime() : String(e.debut).slice(0, 10));
+    const deja = new Set(base.map(cle));
+    ajoutsAgenda = ajoutsAgenda.filter((e) => !deja.has(cle(e)) && ((dateSure(e.fin) || dateSure(e.debut) || new Date(0)) > new Date(Date.now() - 864e5)));
+    store.set("agendaAjouts", ajoutsAgenda);
+    const l = base.concat(ajoutsAgenda);
     return l.map((e) => ({ ...e, d: e.journee ? new Date(String(e.debut).slice(0, 10) + "T12:00:00") : dateSure(e.debut), f: dateSure(e.fin) }))
       .filter((e) => e.d && (e.journee ? jourCle(e.d) >= jourCle(new Date()) : (e.f || e.d) > new Date()))
       .sort((a, b) => a.d - b.d);
@@ -601,7 +608,7 @@
   function afficherAgenda() {
     const ul = $("#agendaListe"); if (!ul) return;
     ul.innerHTML = "";
-    if (!briefing || !Array.isArray(briefing.agenda)) { vide(ul, "L'agenda arrive avec le briefing du matin."); return; }
+    if ((!briefing || !Array.isArray(briefing.agenda)) && !ajoutsAgenda.length) { vide(ul, "L'agenda arrive avec le briefing du matin."); return; }
     const evts = evenements().slice(0, 12);
     if (!evts.length) { vide(ul, "Rien de prévu dans les 7 prochains jours."); return; }
     let jourCourant = "";
@@ -622,7 +629,7 @@
     });
   }
   function texteAgenda(portee) {
-    if (!briefing || !Array.isArray(briefing.agenda)) return "Je n'ai pas encore votre agenda. Il arrivera avec le prochain briefing.";
+    if ((!briefing || !Array.isArray(briefing.agenda)) && !ajoutsAgenda.length) return "Je n'ai pas encore votre agenda. Il arrivera avec le prochain briefing.";
     const auj = jourCle(new Date()), dem = jourCle(new Date(Date.now() + 864e5));
     let evts = evenements(), quand;
     if (portee === "agenda-demain") { evts = evts.filter((e) => jourCle(e.d) === dem); quand = "demain"; }
@@ -707,11 +714,8 @@
     a.textContent = "Valider dans Google Agenda";
     a.addEventListener("click", () => {
       // on l'affiche tout de suite dans le panneau Agenda, sans attendre le briefing du lendemain
-      if (briefing) {
-        if (!Array.isArray(briefing.agenda)) briefing.agenda = [];
-        briefing.agenda.push({ titre: ev.titre, debut: ev.journee ? ev.debut : dateParis(ev.debut).toISOString(), fin: ev.journee ? "" : dateParis(ev.fin).toISOString(), journee: ev.journee, lieu: ev.lieu, ajoute: true });
-        store.set("briefing", briefing); afficherAgenda();
-      }
+      ajoutsAgenda.push({ titre: ev.titre, debut: ev.journee ? ev.debut : dateParis(ev.debut).toISOString(), fin: ev.journee ? "" : dateParis(ev.fin).toISOString(), journee: ev.journee, lieu: ev.lieu, ajoute: true });
+      store.set("agendaAjouts", ajoutsAgenda); afficherAgenda();
       a.textContent = "Ouvert dans Google Agenda ✓"; a.classList.add("fait");
     }, { once: true });
     p.after(a);
