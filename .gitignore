@@ -1,0 +1,5 @@
+# Jamais de données ni de clé dans ce dépôt public
+*.env
+.env*
+jarvis-briefing.json
+briefing/

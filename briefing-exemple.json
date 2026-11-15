@@ -1,0 +1,27 @@
+{
+  "exemple": true,
+  "genere_le": "2026-11-16T08:30:00+01:00",
+  "mails": {
+    "resume": "Matinée calme : un prospect à rappeler et une facture fournisseur.",
+    "pubs_ecartees": 14,
+    "pubs_resume": "Promos, newsletters outils web, une relance de salon.",
+    "categories": [
+      { "nom": "Prospects et clients", "nombre": 2, "elements": [
+        { "de": "Boulangerie exemple", "objet": "Demande de devis site vitrine", "but": "devis", "urgent": true },
+        { "de": "Gîte exemple", "objet": "Merci pour la fiche Google", "but": "remerciement" } ] },
+      { "nom": "Administratif", "nombre": 1, "elements": [
+        { "de": "Hébergeur exemple", "objet": "Facture de novembre", "but": "à payer" } ] },
+      { "nom": "Réseaux", "nombre": 3, "elements": [
+        { "de": "LinkedIn", "objet": "2 nouvelles invitations", "but": "info" } ] }
+    ],
+    "brouillons": 1
+  },
+  "publications": [
+    { "date": "2026-11-16T10:30:00+01:00", "reseaux": ["LinkedIn", "Fiche Google"], "titre": "Votre fiche Google est-elle à jour ?", "statut": "programmé" },
+    { "date": "2026-11-19T10:30:00+01:00", "reseaux": ["LinkedIn", "Fiche Google"], "titre": "Avant / après : la carte de visite d'un artisan", "statut": "brouillon" }
+  ],
+  "a_valider": [
+    { "titre": "Brouillon de réponse au devis de la boulangerie", "detail": "Dans les brouillons Gmail" },
+    { "titre": "Post du jeudi 19", "detail": "Texte et visuel à relire dans Buffer" }
+  ]
+}

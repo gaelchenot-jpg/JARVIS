@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://generativelanguage.googleapis.com https://api.groq.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Jarvis</title>
+<meta name="description" content="Assistant vocal personnel de Gaël : conversation, briefing du matin, mails et publications.">
+<meta name="theme-color" content="#101418">
+<meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preload" href="fonts/unbounded-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="css/jarvis.css">
+</head>
+<body data-state="idle">
+
+<svg class="fond" aria-hidden="true" preserveAspectRatio="xMidYMid slice" viewBox="0 0 1200 900">
+  <defs>
+    <filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 .93 0 0 0 0 .89 0 0 0 0 .84 0 0 0 .05 0"/></filter>
+  </defs>
+  <g class="courbes" fill="none" stroke="currentColor" stroke-width="1">
+    <path d="M-40 120 C 180 60, 320 220, 520 170 S 860 40, 1240 150"/>
+    <path d="M-40 190 C 200 130, 340 290, 540 240 S 880 110, 1240 220"/>
+    <path d="M-40 270 C 220 210, 360 370, 560 320 S 900 190, 1240 300"/>
+    <path d="M-40 620 C 160 700, 380 560, 600 640 S 940 760, 1240 660"/>
+    <path d="M-40 700 C 180 780, 400 640, 620 720 S 960 840, 1240 740"/>
+    <path d="M-40 780 C 200 860, 420 720, 640 800 S 980 920, 1240 820"/>
+  </g>
+  <rect width="100%" height="100%" filter="url(#grain)"/>
+</svg>
+
+<header class="bandeau">
+  <div class="marque">
+    <span class="marque-nom">Jarvis</span>
+    <span class="marque-etat" id="etatTexte">En veille</span>
+  </div>
+  <div class="horloge" aria-live="off">
+    <span id="heure">--:--</span>
+    <span id="date" class="horloge-date"></span>
+  </div>
+  <button class="icone-btn" id="ouvrirReglages" aria-label="Réglages">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>
+  </button>
+</header>
+
+<main class="poste">
+
+  <section class="coeur" aria-label="Parler à Jarvis">
+    <button class="noyau" id="noyau" aria-label="Appuyer pour parler">
+      <svg viewBox="0 0 400 400" aria-hidden="true">
+        <g class="anneau anneau-graduations">
+          <circle cx="200" cy="200" r="188" class="trait-fin"/>
+          <g id="graduations"></g>
+        </g>
+        <g class="anneau anneau-arcs">
+          <path d="M200 40 A160 160 0 0 1 360 200" class="arc arc-cuivre"/>
+          <path d="M200 360 A160 160 0 0 1 58 270" class="arc arc-eau"/>
+          <path d="M62 128 A160 160 0 0 1 120 62" class="arc arc-laiton"/>
+        </g>
+        <g class="anneau anneau-confluence">
+          <path d="M92 250 C 140 236, 168 206, 200 200 C 232 194, 262 160, 300 120" class="riviere"/>
+          <path d="M96 140 C 140 166, 170 196, 200 200" class="riviere riviere-2"/>
+        </g>
+        <circle cx="200" cy="200" r="96" class="disque"/>
+        <g class="onde" id="onde"></g>
+      </svg>
+      <span class="noyau-texte" id="noyauTexte">Parler</span>
+    </button>
+    <p class="consigne" id="consigne">Touchez le cercle et parlez. Je vous écoute.</p>
+    <label class="bascule">
+      <input type="checkbox" id="modeConversation">
+      <span class="bascule-piste" aria-hidden="true"></span>
+      <span>Conversation continue</span>
+    </label>
+  </section>
+
+  <section class="dialogue" aria-label="Conversation">
+    <ol class="fil" id="fil" aria-live="polite"></ol>
+    <form class="saisie" id="saisie" autocomplete="off">
+      <label class="sr" for="champ">Écrire à Jarvis</label>
+      <input id="champ" type="text" placeholder="Ou écrivez ici…" enterkeyhint="send">
+      <button type="submit" class="envoyer" aria-label="Envoyer">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h14M13 6l6 6-6 6"/></svg>
+      </button>
+    </form>
+  </section>
+
+  <aside class="briefing" aria-label="Briefing du matin">
+    <div class="briefing-tete">
+      <h2>Briefing</h2>
+      <span class="briefing-maj" id="briefingMaj">Aucun briefing chargé</span>
+    </div>
+
+    <div class="bloc bloc-mails">
+      <h3>Mails</h3>
+      <p class="bloc-resume" id="mailsResume">Le tri de 8 h 30 n'est pas encore arrivé.</p>
+      <ul class="liste" id="mailsListe"></ul>
+    </div>
+
+    <div class="bloc bloc-posts">
+      <h3>Publications à venir</h3>
+      <ul class="liste" id="postsListe"><li class="vide">Rien de prévu pour l'instant.</li></ul>
+    </div>
+
+    <div class="bloc bloc-faire">
+      <h3>À valider</h3>
+      <ul class="liste" id="faireListe"><li class="vide">Rien en attente.</li></ul>
+    </div>
+
+    <div class="briefing-actions">
+      <button class="btn" id="lireBriefing">Me le lire</button>
+      <button class="btn btn-ligne" id="chargerBriefing">Charger le briefing</button>
+      <input type="file" id="fichierBriefing" accept="application/json,.json" hidden>
+    </div>
+  </aside>
+</main>
+
+<dialog class="reglages" id="reglages" aria-labelledby="reglagesTitre">
+  <form method="dialog" class="reglages-corps" id="formReglages">
+    <h2 id="reglagesTitre">Réglages</h2>
+
+    <fieldset>
+      <legend>Cerveau</legend>
+      <p class="aide">La clé reste sur cet appareil uniquement. Elle n'est jamais mise en ligne avec l'appli.</p>
+      <div class="choix">
+        <label><input type="radio" name="fournisseur" value="gemini" checked> Google Gemini</label>
+        <label><input type="radio" name="fournisseur" value="groq"> Groq</label>
+      </div>
+      <label class="champ-bloc">Clé API
+        <input type="password" id="cle" placeholder="Collez votre clé ici" autocomplete="off" spellcheck="false">
+      </label>
+      <label class="champ-bloc"><span>Modèle <span class="aide-inline">(laisser vide = choix automatique)</span></span>
+        <input type="text" id="modele" placeholder="automatique" spellcheck="false">
+      </label>
+      <div class="ligne-btns">
+        <button type="button" class="btn btn-ligne" id="testerCle">Tester la clé</button>
+        <span class="retour" id="retourCle" role="status"></span>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Voix</legend>
+      <label class="champ-bloc">Voix de Jarvis
+        <select id="voix"></select>
+      </label>
+      <label class="champ-bloc"><span>Vitesse <output id="vitesseVal">1,05</output></span>
+        <input type="range" id="vitesse" min="0.7" max="1.4" step="0.05" value="1.05">
+      </label>
+      <label class="champ-bloc"><span>Hauteur <output id="hauteurVal">0,9</output></span>
+        <input type="range" id="hauteur" min="0.5" max="1.5" step="0.05" value="0.9">
+      </label>
+      <button type="button" class="btn btn-ligne" id="essayerVoix">Écouter un essai</button>
+    </fieldset>
+
+    <fieldset>
+      <legend>Vous</legend>
+      <label class="champ-bloc">Comment Jarvis vous appelle
+        <input type="text" id="surnom" placeholder="Gaël">
+      </label>
+    </fieldset>
+
+    <fieldset id="zoneDossier">
+      <legend>Briefing automatique</legend>
+      <p class="aide">Sur ordinateur, reliez le dossier où arrive le fichier <code>jarvis-briefing.json</code> chaque matin. Jarvis le relira à chaque ouverture.</p>
+      <div class="ligne-btns">
+        <button type="button" class="btn btn-ligne" id="relierDossier">Relier un dossier</button>
+        <span class="retour" id="retourDossier" role="status"></span>
+      </div>
+    </fieldset>
+
+    <div class="reglages-pied">
+      <button type="button" class="btn btn-discret" id="effacerConv">Effacer la conversation</button>
+      <button value="ok" class="btn">Fermer</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="js/app.js" defer></script>
+</body>
+</html>
