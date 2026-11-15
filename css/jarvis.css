@@ -256,7 +256,7 @@ fieldset > .btn { align-self: flex-start; }
   .colonne { display: contents; }
   .coeur { order: 0; }
   .jauges { order: 1; }
-  .agenda { order: 2; }
+  .briefing-general, .agenda { order: 2; }
   .dialogue { order: 3; }
   .briefing { order: 4; }
   .colonne-droite > .panneau:nth-child(2) { order: 5; }
