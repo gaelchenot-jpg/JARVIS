@@ -293,12 +293,18 @@
       `Nous sommes le ${fmtDate.format(n)}, il est ${fmtHeure.format(n)} (heure de Paris).`,
       "Tu réponds en français, avec un ton posé, chaleureux et un brin d'humour discret, comme un majordome efficace. Tu le vouvoies.",
       "Tes réponses sont lues à voix haute : phrases courtes, pas de listes à puces, pas de markdown, pas d'émojis. Trois ou quatre phrases maximum, sauf si on te demande un texte long (un post, un mail) : dans ce cas tu l'écris en entier.",
+      "Tu peux chercher sur internet quand la question porte sur l'actualité, la météo, des prix, des horaires ou des faits récents : dans ce cas, cite en quelques mots ta source (le nom du site) sans lire d'adresse web.",
       "Tu n'as pas accès aux mails, au calendrier ni aux réseaux sociaux. Si on te pose une question sur les mails ou les publications du jour, propose de dire « lis-moi le briefing ».",
       "Tu n'envoies et ne publies jamais rien toi-même. Si tu rédiges un mail ou un post, précise que c'est un brouillon à relire.",
       "Si tu ne sais pas, dis-le simplement plutôt que d'inventer.",
     ].join("\n");
   }
 
+  /* Faut-il chercher sur internet ? (actualité, météo, prix, horaires, « cherche »…) */
+  function besoinWeb(q) {
+    const n = norm(q);
+    return /(cherche|recherche|internet|sur le web|sur google|actu|news|nouvelles|meteo|temps qu.il fait|il va pleuvoir|aujourd.hui|ce soir|demain|cette semaine|en ce moment|actuellement|derni[e]?r|recent|prix|combien coute|tarif|cours d|horaire|ouvert|ferme|adresse|telephone|numero de|resultat|score|qui a gagne|match|sortie|evenement|agenda|elections?|20[2-3]\d)/.test(n);
+  }
   async function demanderAuCerveau(question, surMorceau) {
     if (!cfg.cle) throw new Error("Il me manque ma clé pour réfléchir. Ouvrez les réglages, en haut à droite, et collez la clé gratuite.");
     if (!navigator.onLine) throw new Error("Je suis hors ligne. Je peux encore lire le briefing, mais pas discuter.");
@@ -306,9 +312,11 @@
     const ctrl = new AbortController(); appelEnCours = ctrl;
     // Garde-fou : si rien n'arrive en 25 secondes, on abandonne avec un message clair
     let premier = false, tropLong = false;
-    const minuteur = setTimeout(() => { if (!premier) { tropLong = true; ctrl.abort(); } }, 25000);
+    const minuteur = setTimeout(() => { if (!premier) { tropLong = true; ctrl.abort(); } }, 40000);
     const morceau = surMorceau ? (t) => { premier = true; surMorceau(t); } : () => { premier = true; };
-    try { return await (cfg.fournisseur === "groq" ? appelGroq(passe, question, morceau, ctrl.signal) : appelGemini(passe, question, morceau, ctrl.signal)); }
+    const web = besoinWeb(question);
+    if (web && etat === "thinking") consigne("Je cherche sur internet…");
+    try { return await (cfg.fournisseur === "groq" ? appelGroq(passe, question, morceau, ctrl.signal, web) : appelGemini(passe, question, morceau, ctrl.signal, web)); }
     catch (e) {
       if (tropLong) throw new Error("Google met trop de temps à répondre. Vérifiez la connexion, puis réessayez.");
       throw e;
@@ -361,7 +369,7 @@
     }
     return tout.trim();
   }
-  async function appelGemini(passe, question, surMorceau, signal) {
+  async function appelGemini(passe, question, surMorceau, signal, web) {
     const liste = await modelesGemini();
     const contents = passe.map((m) => ({ role: m.role === "user" ? "user" : "model", parts: [{ text: m.texte }] }));
     contents.push({ role: "user", parts: [{ text: question }] });
@@ -370,8 +378,11 @@
       const generationConfig = { temperature: 0.7, maxOutputTokens: 2048 };
       // Réponse immédiate : on coupe la « réflexion » préalable quand le modèle l'accepte
       if (!sansReglage[modele]) generationConfig.thinkingConfig = parseFloat(modele.split("-")[1]) >= 3 ? { thinkingLevel: "minimal" } : { thinkingBudget: 0 };
-      return JSON.stringify({ systemInstruction: { parts: [{ text: consignesSysteme() }] }, contents, generationConfig });
+      const corps = { systemInstruction: { parts: [{ text: consignesSysteme() }] }, contents, generationConfig };
+      if (web && !sansWeb) corps.tools = [{ google_search: {} }];   // recherche Google intégrée (gratuite, avec quota)
+      return JSON.stringify(corps);
     };
+    let sansWeb = false;
     const appel = (modele) => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modele)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(cfg.cle)}`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: corps(modele), signal });
     let derniere = 503;
@@ -379,6 +390,7 @@
       let r;
       try {
         r = await appel(liste[i]);
+        if (web && !sansWeb && [400, 429].includes(r.status)) { sansWeb = true; r = await appel(liste[i]); }  // recherche indisponible : on répond sans
         if (r.status === 400 && !sansReglage[liste[i]]) {       // ce modèle refuse le réglage : on réessaie sans, et on s'en souvient
           sansReglage[liste[i]] = true; store.set("geminiSansReglage", sansReglage);
           r = await appel(liste[i]);
@@ -413,8 +425,18 @@
     store.set("modeleAutoGroq", { m, t: Date.now() });
     return m;
   }
-  async function appelGroq(passe, question, surMorceau, signal) {
-    const modele = await modeleGroq();
+  async function appelGroq(passe, question, surMorceau, signal, web) {
+    const normal = await modeleGroq();
+    if (web) {
+      // Les modèles « compound » de Groq cherchent eux-mêmes sur le web
+      for (const m of ["groq/compound-mini", "groq/compound"]) {
+        try { return await appelGroqModele(m, passe, question, surMorceau, signal); }
+        catch (e) { if (e.name === "AbortError") throw e; }   // sinon : modèle suivant, puis réponse sans recherche
+      }
+    }
+    return appelGroqModele(normal, passe, question, surMorceau, signal);
+  }
+  async function appelGroqModele(modele, passe, question, surMorceau, signal) {
     const messages = [{ role: "system", content: consignesSysteme() }]
       .concat(passe.map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: m.texte })))
       .concat([{ role: "user", content: question }]);
@@ -423,7 +445,7 @@
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + cfg.cle },
       body: JSON.stringify({ model: modele, messages, temperature: 0.7, max_tokens: 1500, stream: true }),
     });
-    if (!r.ok) { store.set("modeleAutoGroq", null); throw erreurHttp(r.status); }
+    if (!r.ok) { if (!modele.startsWith("groq/")) store.set("modeleAutoGroq", null); throw erreurHttp(r.status); }
     const t = await lireFlux(r, (d) => d.choices?.[0]?.delta?.content, surMorceau);
     if (!t) throw new Error("Je n'ai pas trouvé quoi répondre. Pouvez-vous reformuler ?");
     return t;
