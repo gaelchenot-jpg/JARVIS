@@ -99,7 +99,9 @@
     li.append(s, p);
     $("#fil").appendChild(li);
     li.scrollIntoView({ block: "end", behavior: "smooth" });
+    return p;
   }
+  const typo = (t) => t.replace(/ ([:;?!»])/g, "\u00a0$1").replace(/« /g, "«\u00a0");
   function rejouerHistorique() {
     historique.slice(-20).forEach((m) => ajouterMessage(m.role === "user" ? "vous" : "jarvis", m.texte));
   }
@@ -123,27 +125,44 @@
   function nettoyerPourVoix(t) {
     return t.replace(/```[\s\S]*?```/g, " ").replace(/[*_#`>|]/g, "").replace(/\[(.*?)\]\(.*?\)/g, "$1").replace(/https?:\/\/\S+/g, "le lien").replace(/\s+/g, " ").trim();
   }
-  function parler(texte) {
-    return new Promise((resolve) => {
-      if (!synth) return resolve();
-      synth.cancel();
-      const morceaux = nettoyerPourVoix(texte).match(/[^.!?…]+[.!?…]*\s*/g) || [texte];
-      const voix = voixDispo.find((v) => v.name === cfg.voix);
-      let i = 0;
-      setEtat("speaking"); animerOnde(true);
-      const fin = () => { animerOnde(false); if (etat === "speaking") setEtat("idle"); resolve(); };
-      const suivant = () => {
-        if (i >= morceaux.length || etat !== "speaking") return fin();
-        const u = new SpeechSynthesisUtterance(morceaux[i++]);
-        u.lang = voix ? voix.lang : "fr-FR"; if (voix) u.voice = voix;
-        u.rate = cfg.vitesse; u.pitch = cfg.hauteur;
-        u.onend = suivant; u.onerror = fin;
-        synth.speak(u);
-      };
-      suivant();
-    });
+  /* Diseur : une file de phrases. On peut lui en ajouter pendant qu'il parle,
+     ce qui permet de commencer à parler avant d'avoir toute la réponse. */
+  function creerDiseur() {
+    let file = [], fini = false, actif = false, clos = false, resoudre;
+    const promesse = new Promise((r) => (resoudre = r));
+    const voix = voixDispo.find((v) => v.name === cfg.voix);
+    const fin = () => { if (clos) return; clos = true; animerOnde(false); if (etat === "speaking") setEtat("idle"); resoudre(); };
+    const suivant = () => {
+      if (clos) return;
+      if (etat !== "speaking") return fin();              // on lui a coupé la parole
+      if (!file.length) { actif = false; if (fini) fin(); return; }
+      actif = true;
+      const u = new SpeechSynthesisUtterance(file.shift());
+      u.lang = voix ? voix.lang : "fr-FR"; if (voix) u.voice = voix;
+      u.rate = cfg.vitesse; u.pitch = cfg.hauteur;
+      u.onend = suivant; u.onerror = () => { actif = false; suivant(); };
+      synth.speak(u);
+    };
+    return {
+      promesse,
+      ajouter(t) {
+        const propre = nettoyerPourVoix(t); if (!propre || clos) return;
+        if (!synth) return;
+        if (etat !== "speaking") { if (file.length || actif) return; setEtat("speaking"); animerOnde(true); }
+        file.push(propre); if (!actif) suivant();
+      },
+      terminer() { fini = true; if (!synth || !actif) { if (!file.length) fin(); } return promesse; },
+    };
   }
-  function taire() { if (synth) synth.cancel(); animerOnde(false); setEtat("idle"); }
+  function parler(texte) {
+    if (!synth) return Promise.resolve();
+    synth.cancel();
+    const d = creerDiseur();
+    (texte.match(/[^.!?…]+[.!?…]*\s*/g) || [texte]).forEach((m) => d.ajouter(m));
+    return d.terminer();
+  }
+  let appelEnCours = null;
+  function taire() { if (appelEnCours) { appelEnCours.abort(); appelEnCours = null; } if (synth) synth.cancel(); animerOnde(false); setEtat("idle"); }
 
   /* ---------- Voix d'entrée ---------- */
   const Reco = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -210,24 +229,44 @@
   async function traiter(texte) {
     ajouterMessage("vous", texte);
     const intention = intentionLocale(texte);
-    let reponse;
     if (intention === "stop") { taire(); consigne("D'accord, je me tais."); return; }
-    if (intention) reponse = repondreLocal(intention);
-    else {
+    const suite = cfg.continu ? "Conversation continue : je réécoute après ma réponse." : "Touchez le cercle pour me répondre.";
+    let reponse;
+    if (intention) {
+      reponse = repondreLocal(intention);
+      ajouterMessage("jarvis", reponse); consigne(suite);
+      memoriser("user", texte); memoriser("model", reponse);
+      await parler(reponse);
+    } else {
       setEtat("thinking"); consigne("Je réfléchis…");
-      try { reponse = await demanderAuCerveau(texte); }
+      if (synth) synth.cancel();
+      const diseur = creerDiseur();
+      let p = null, recu = "", dit = 0;
+      const surMorceau = (delta) => {
+        recu += delta;
+        if (!p) { p = ajouterMessage("jarvis", ""); consigne(suite); }
+        p.textContent = typo(recu);
+        p.parentNode.scrollIntoView({ block: "end" });
+        // on envoie à la voix chaque phrase terminée, sans attendre la suite
+        const re = /[^.!?…\n]*[.!?…\n]+(?=\s|$)/g; re.lastIndex = dit; let m;
+        while ((m = re.exec(recu))) { if (m[0].trim().length > 1) diseur.ajouter(m[0]); dit = re.lastIndex; }
+      };
+      try { reponse = await demanderAuCerveau(texte, surMorceau); }
       catch (err) {
+        if (err.name === "AbortError") { if (recu) { memoriser("user", texte); memoriser("model", recu); } return; }
         setEtat("idle");
         const m = err.message || "Je n'ai pas pu joindre mon cerveau.";
+        if (p) p.parentNode.remove();
         ajouterMessage("jarvis", m, true); consigne(m, true);
         await parler(m);
         return;
       }
+      if (!p) surMorceau(reponse);
+      if (recu.slice(dit).trim()) diseur.ajouter(recu.slice(dit));
+      memoriser("user", texte); memoriser("model", reponse);
+      if (etat === "thinking") setEtat("idle");
+      await diseur.terminer();
     }
-    memoriser("user", texte); memoriser("model", reponse);
-    ajouterMessage("jarvis", reponse);
-    consigne(cfg.continu ? "Conversation continue : je réécoute après ma réponse." : "Touchez le cercle pour me répondre.");
-    await parler(reponse);
     if (cfg.continu && etat === "idle") setTimeout(ecouter, 350);
   }
   function memoriser(role, texte) {
@@ -260,11 +299,13 @@
     ].join("\n");
   }
 
-  async function demanderAuCerveau(question) {
+  async function demanderAuCerveau(question, surMorceau) {
     if (!cfg.cle) throw new Error("Il me manque ma clé pour réfléchir. Ouvrez les réglages, en haut à droite, et collez la clé gratuite.");
     if (!navigator.onLine) throw new Error("Je suis hors ligne. Je peux encore lire le briefing, mais pas discuter.");
     const passe = historique.slice(-12);
-    return cfg.fournisseur === "groq" ? appelGroq(passe, question) : appelGemini(passe, question);
+    appelEnCours = new AbortController();
+    try { return await (cfg.fournisseur === "groq" ? appelGroq(passe, question, surMorceau, appelEnCours.signal) : appelGemini(passe, question, surMorceau, appelEnCours.signal)); }
+    finally { appelEnCours = null; }
   }
 
   function erreurHttp(status, detail) {
@@ -293,23 +334,50 @@
     store.set("modelesAutoGemini", { l, t: Date.now() });
     return l;
   }
-  async function appelGemini(passe, question) {
+  async function lireFlux(r, extraire, surMorceau) {
+    const lecteur = r.body.getReader(), dec = new TextDecoder();
+    let tampon = "", tout = "";
+    for (;;) {
+      const { value, done } = await lecteur.read();
+      if (done) break;
+      tampon += dec.decode(value, { stream: true });
+      const lignes = tampon.split("\n"); tampon = lignes.pop();
+      for (const l of lignes) {
+        if (!l.startsWith("data:")) continue;
+        const brut = l.slice(5).trim(); if (!brut || brut === "[DONE]") continue;
+        let t = ""; try { t = extraire(JSON.parse(brut)) || ""; } catch {}
+        if (t) { tout += t; if (surMorceau) surMorceau(t); }
+      }
+    }
+    return tout.trim();
+  }
+  async function appelGemini(passe, question, surMorceau, signal) {
     const liste = await modelesGemini();
     const contents = passe.map((m) => ({ role: m.role === "user" ? "user" : "model", parts: [{ text: m.texte }] }));
     contents.push({ role: "user", parts: [{ text: question }] });
-    const corps = JSON.stringify({ systemInstruction: { parts: [{ text: consignesSysteme() }] }, contents, generationConfig: { temperature: 0.7, maxOutputTokens: 2048 } });
+    const sansReglage = store.get("geminiSansReglage", {});
+    const corps = (modele) => {
+      const generationConfig = { temperature: 0.7, maxOutputTokens: 2048 };
+      // Réponse immédiate : on coupe la « réflexion » préalable quand le modèle l'accepte
+      if (!sansReglage[modele]) generationConfig.thinkingConfig = parseFloat(modele.split("-")[1]) >= 3 ? { thinkingLevel: "minimal" } : { thinkingBudget: 0 };
+      return JSON.stringify({ systemInstruction: { parts: [{ text: consignesSysteme() }] }, contents, generationConfig });
+    };
+    const appel = (modele) => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modele)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(cfg.cle)}`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: corps(modele), signal });
     let derniere = 503;
     for (let i = 0; i < Math.min(liste.length, 5); i++) {
       let r;
       try {
-        r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(liste[i])}:generateContent?key=${encodeURIComponent(cfg.cle)}`, {
-          method: "POST", headers: { "Content-Type": "application/json" }, body: corps });
-      } catch { throw new Error("Je n'arrive pas à joindre Google. Vérifiez la connexion internet."); }
+        r = await appel(liste[i]);
+        if (r.status === 400 && !sansReglage[liste[i]]) {       // ce modèle refuse le réglage : on réessaie sans, et on s'en souvient
+          sansReglage[liste[i]] = true; store.set("geminiSansReglage", sansReglage);
+          r = await appel(liste[i]);
+        }
+      } catch (e) { if (e.name === "AbortError") throw e; throw new Error("Je n'arrive pas à joindre Google. Vérifiez la connexion internet."); }
       if (r.ok) {
-        const d = await r.json();
-        const t = (d.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("").trim();
-        if (!t) throw new Error("Je n'ai pas trouvé quoi répondre. Pouvez-vous reformuler ?");
         if (i > 0 && !cfg.modele) store.set("modelesAutoGemini", { l: [liste[i], ...liste.filter((x) => x !== liste[i])], t: Date.now() }); // celui qui marche passe en tête
+        const t = await lireFlux(r, (d) => (d.candidates?.[0]?.content?.parts || []).filter((p) => !p.thought).map((p) => p.text || "").join(""), surMorceau);
+        if (!t) throw new Error("Je n'ai pas trouvé quoi répondre. Pouvez-vous reformuler ?");
         return t;
       }
       derniere = r.status;
@@ -335,19 +403,18 @@
     store.set("modeleAutoGroq", { m, t: Date.now() });
     return m;
   }
-  async function appelGroq(passe, question) {
+  async function appelGroq(passe, question, surMorceau, signal) {
     const modele = await modeleGroq();
     const messages = [{ role: "system", content: consignesSysteme() }]
       .concat(passe.map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: m.texte })))
       .concat([{ role: "user", content: question }]);
     const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
+      method: "POST", signal,
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + cfg.cle },
-      body: JSON.stringify({ model: modele, messages, temperature: 0.7, max_tokens: 1500 }),
+      body: JSON.stringify({ model: modele, messages, temperature: 0.7, max_tokens: 1500, stream: true }),
     });
     if (!r.ok) { store.set("modeleAutoGroq", null); throw erreurHttp(r.status); }
-    const d = await r.json();
-    const t = (d.choices?.[0]?.message?.content || "").replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+    const t = await lireFlux(r, (d) => d.choices?.[0]?.delta?.content, surMorceau);
     if (!t) throw new Error("Je n'ai pas trouvé quoi répondre. Pouvez-vous reformuler ?");
     return t;
   }
