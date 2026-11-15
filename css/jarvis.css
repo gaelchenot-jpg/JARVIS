@@ -252,7 +252,14 @@ fieldset > .btn { align-self: flex-start; }
   .regle { justify-content: flex-start; font-size: .62rem; }
   .regle span:not(.proche) { display: none; }
   .regle { justify-content: space-between; }
-  .colonne-droite { order: 2; } .colonne-gauche { order: 3; }
+  /* Téléphone : roue, puis Système, conversation, briefing, publications, à valider */
+  .colonne { display: contents; }
+  .coeur { order: 0; }
+  .jauges { order: 1; }
+  .dialogue { order: 2; }
+  .briefing { order: 3; }
+  .colonne-droite > .panneau:nth-child(2) { order: 4; }
+  .colonne-droite > .panneau:nth-child(3) { order: 5; }
   .dock { gap: 8px; }
   .dock-btn { width: 60px; }
   .dock-btn svg { width: 50px; height: 50px; padding: 12px; }
