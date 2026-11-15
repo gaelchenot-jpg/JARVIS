@@ -377,3 +377,9 @@ fieldset > .btn { align-self: flex-start; }
 .actu-pourmoi { margin: 0; font-size: .9rem; color: var(--cyan-vif); }
 .actu-pourmoi::before { content: "Pour vous : "; color: var(--texte-doux); }
 .actu-source { font-size: .8rem; color: var(--texte-doux); }
+.actu-tete { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.actu-titre { font-weight: 700; min-width: 0; }
+.actu-garder { flex: none; min-height: 32px; padding: 0 10px; border: 1px solid var(--cyan-sombre); background: transparent; color: var(--cyan-vif); font: 700 .78rem var(--corps, inherit); cursor: pointer; }
+.actu-garder:hover:not(:disabled) { border-color: var(--cyan); background: var(--voile); }
+.actu-garder:disabled { opacity: .6; cursor: default; }
+.actu-gardees .actu-rubrique { color: var(--cyan); }

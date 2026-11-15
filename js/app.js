@@ -642,26 +642,54 @@
       `${portee === "agenda-semaine" ? nomJour(e.d) + ", " : ""}${e.journee ? "toute la journée" : "à " + fmtHeure.format(e.d).replace(":", " h ")} : ${e.titre}${e.lieu ? ", à " + e.lieu : ""}.`).join(" ");
   }
 
-  /* ---------- Actu IA : éditions du matin, gardées sur l'appareil jusqu'au nettoyage ---------- */
-  let actus = store.get("actuIA", []);
+  /* ---------- Actu IA : chaque édition du matin remplace la précédente.
+     Seules restent les infos « gardées » : bouton Garder (sur l'appareil) ou demande écrite (clé actu_gardees du briefing). */
+  let actus = store.get("actuIA", []).slice(0, 1);
+  let gardeesLocales = store.get("actuGardees", []);
   const lienSur = (u) => { try { const x = new URL(u); return x.protocol === "https:" ? x.href : null; } catch { return null; } };
+  const cleActu = (x) => norm(String(x.nom || x.titre || "")).trim();
   function archiverActu() {
     const a = briefing && briefing.actu_ia;
     if (!a || typeof a !== "object" || !(Array.isArray(a.skills) || Array.isArray(a.infos) || Array.isArray(a.infos_generales))) return;
     const date = String(a.date || (briefing.genere_le || "").slice(0, 10) || jourCle(new Date())).slice(0, 10);
-    if (store.get("actuEffacees", []).includes(date)) return;
-    actus = actus.filter((e) => e.date !== date);
-    actus.push({ date, skills: (a.skills || []).slice(0, 3), infos: (a.infos || []).slice(0, 3), generales: (a.infos_generales || []).slice(0, 3) });
-    actus.sort((x, y) => (x.date < y.date ? 1 : -1));
-    actus = actus.slice(0, 14);
+    if (store.get("actuEffacees", []).includes(date)) { actus = []; store.set("actuIA", actus); return; }
+    if (actus[0] && actus[0].date > date) return; // ne jamais revenir à une édition plus ancienne
+    actus = [{ date, skills: (a.skills || []).slice(0, 3), infos: (a.infos || []).slice(0, 3), generales: (a.infos_generales || []).slice(0, 3) }];
     store.set("actuIA", actus);
   }
-  function elementActu(x, avecPourMoi) {
+  function gardees() {
+    const retirees = new Set(store.get("actuRetirees", []));
+    const deBriefing = Array.isArray(briefing && briefing.actu_gardees) ? briefing.actu_gardees : [];
+    const vues = new Set(); const l = [];
+    deBriefing.concat(gardeesLocales).forEach((x) => { const k = cleActu(x); if (k && !vues.has(k) && !retirees.has(k)) { vues.add(k); l.push(x); } });
+    return l;
+  }
+  const estGardee = (x) => gardees().some((g) => cleActu(g) === cleActu(x));
+  function garder(x) {
+    const k = cleActu(x);
+    store.set("actuRetirees", store.get("actuRetirees", []).filter((r) => r !== k));
+    if (!gardeesLocales.some((g) => cleActu(g) === k)) { gardeesLocales.push({ ...x, garde_le: jourCle(new Date()) }); store.set("actuGardees", gardeesLocales); }
+    afficherActu();
+  }
+  function retirer(x) {
+    const k = cleActu(x);
+    gardeesLocales = gardeesLocales.filter((g) => cleActu(g) !== k); store.set("actuGardees", gardeesLocales);
+    const r = store.get("actuRetirees", []); if (!r.includes(k)) { r.push(k); store.set("actuRetirees", r.slice(-200)); }
+    afficherActu();
+  }
+  function elementActu(x, avecPourMoi, dansGardees) {
     return li((e) => {
       const lien = lienSur(x.lien);
+      const tete = document.createElement("div"); tete.className = "actu-tete";
       const t = document.createElement(lien ? "a" : "strong"); t.textContent = x.nom || x.titre || "Sans titre";
-      if (lien) { t.className = "lien-mail"; t.href = lien; t.target = "_blank"; t.rel = "noopener"; t.style.fontWeight = "700"; }
-      e.appendChild(t);
+      if (lien) { t.className = "lien-mail actu-titre"; t.href = lien; t.target = "_blank"; t.rel = "noopener"; }
+      const g = document.createElement("button"); g.type = "button"; g.className = "actu-garder";
+      const deja = !dansGardees && estGardee(x);
+      g.textContent = dansGardees ? "Retirer" : deja ? "Gardée ✓" : "Garder";
+      g.disabled = deja;
+      g.setAttribute("aria-label", (dansGardees ? "Retirer : " : "Garder : ") + t.textContent);
+      g.addEventListener("click", () => (dansGardees ? retirer(x) : garder(x)));
+      tete.append(t, g); e.appendChild(tete);
       if (x.resume) { const p = document.createElement("p"); p.className = "actu-texte"; p.textContent = x.resume; e.appendChild(p); }
       if (avecPourMoi && x.pour_moi) { const p = document.createElement("p"); p.className = "actu-pourmoi"; p.textContent = x.pour_moi; e.appendChild(p); }
       if (x.source) { const sp = document.createElement("span"); sp.className = "actu-source"; sp.textContent = x.source; e.appendChild(sp); }
@@ -670,27 +698,28 @@
   function afficherActu() {
     const box = $("#actuContenu"); if (!box) return;
     box.innerHTML = "";
-    if (!actus.length) { const p = document.createElement("p"); p.className = "vide-texte"; p.textContent = "La prochaine édition arrive avec le briefing de 8 h 30."; box.appendChild(p); return; }
-    actus.forEach((ed, i) => {
-      const d = document.createElement("div"); d.className = "actu-edition" + (i ? " ancienne" : "");
-      const h = document.createElement("p"); h.className = "actu-date";
-      h.textContent = nomJour(new Date(ed.date + "T12:00:00"));
-      d.appendChild(h);
-      const bloc = (titre, liste, pourMoi, videTxt) => {
-        const r = document.createElement("p"); r.className = "actu-rubrique"; r.textContent = titre; d.appendChild(r);
-        const ul = document.createElement("ul"); ul.className = "liste";
-        if (liste.length) liste.forEach((x) => ul.appendChild(elementActu(x, pourMoi)));
-        else ul.appendChild(li((e) => { e.className = "vide"; e.textContent = videTxt; }));
-        d.appendChild(ul);
-      };
-      bloc("Nouveaux skills utiles", ed.skills || [], true, "Rien de nouveau qui vous concerne.");
-      bloc("IA : l'essentiel d'hier", ed.infos || [], false, "Pas d'info marquante.");
-      bloc("Actualité générale", ed.generales || [], false, "Pas d'info marquante.");
+    const bloc = (parent, titre, liste, pourMoi, videTxt, dansGardees) => {
+      const r = document.createElement("p"); r.className = "actu-rubrique"; r.textContent = titre; parent.appendChild(r);
+      const ul = document.createElement("ul"); ul.className = "liste";
+      if (liste.length) liste.forEach((x) => ul.appendChild(elementActu(x, pourMoi || !!x.pour_moi, dansGardees)));
+      else ul.appendChild(li((e) => { e.className = "vide"; e.textContent = videTxt; }));
+      parent.appendChild(ul);
+    };
+    if (!actus.length) { const p = document.createElement("p"); p.className = "vide-texte"; p.textContent = "La prochaine édition arrive avec le briefing de 8 h 30."; box.appendChild(p); }
+    else {
+      const ed = actus[0];
+      const d = document.createElement("div"); d.className = "actu-edition";
+      const h = document.createElement("p"); h.className = "actu-date"; h.textContent = nomJour(new Date(ed.date + "T12:00:00")); d.appendChild(h);
+      bloc(d, "Nouveaux skills utiles", ed.skills || [], true, "Rien de nouveau qui vous concerne.");
+      bloc(d, "IA : l'essentiel d'hier", ed.infos || [], false, "Pas d'info marquante.");
+      bloc(d, "Actualité générale", ed.generales || [], false, "Pas d'info marquante.");
       box.appendChild(d);
-    });
+    }
+    const g = gardees();
+    if (g.length) { const d = document.createElement("div"); d.className = "actu-edition actu-gardees"; bloc(d, "Infos gardées", g, false, "", true); box.appendChild(d); }
   }
   function texteActu() {
-    if (!actus.length) return "Je n'ai pas encore d'actualité IA. La première édition arrive avec le briefing de 8 h 30.";
+    if (!actus.length) return "Je n'ai pas encore d'actualité du jour. La prochaine édition arrive avec le briefing de 8 h 30.";
     const ed = actus[0], sk = ed.skills || [], inf = ed.infos || [], gen = ed.generales || [];
     let t = sk.length ? `Côté nouveaux skills : ${sk.map((x) => (x.nom || x.titre) + ". " + (x.resume || "")).join(" ")} ` : "Pas de nouveau skill utile pour vous. ";
     if (inf.length) t += `En intelligence artificielle : ${inf.map((x) => (x.titre || "") + ". " + (x.resume || "")).join(" ")} `;
@@ -699,12 +728,11 @@
   }
   $("#effacerActu").addEventListener("click", () => {
     const out = $("#retourActu"); out.className = "retour ok";
-    if (actus.length <= 1) { out.textContent = "Rien d'ancien à effacer."; }
+    if (!actus.length) out.textContent = "C'est déjà vide.";
     else {
-      const eff = store.get("actuEffacees", []).concat(actus.slice(1).map((e) => e.date)).slice(-60);
-      store.set("actuEffacees", eff);
-      const n = actus.length - 1; actus = actus.slice(0, 1); store.set("actuIA", actus); afficherActu();
-      out.textContent = `${pluriel(n, "ancienne édition effacée", "anciennes éditions effacées")}.`;
+      store.set("actuEffacees", store.get("actuEffacees", []).concat(actus[0].date).slice(-60));
+      actus = []; store.set("actuIA", actus); afficherActu();
+      out.textContent = "Infos du jour effacées. Les infos gardées restent.";
     }
     setTimeout(() => { out.textContent = ""; }, 5000);
   });
