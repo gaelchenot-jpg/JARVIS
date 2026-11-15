@@ -222,6 +222,7 @@
     if (/(qu.est[- ]ce que tu sais (sur|de) moi|que sais[- ]tu (sur|de) moi|tu te souviens de quoi|ta memoire)/.test(n)) return "memoire";
     if (/(ecri|redige|reponds|prepare|invente|propose)/.test(n)) return null; // demande de création : le cerveau s'en charge
     if (/(actu(alite)?s? (de l.)?(ia|intelligence)|actu(alite)?s? du jour|nouveau(x)? skills?|news (de l.)?ia|quoi de neuf (en|dans l.|cote) ?ia)/.test(n)) return "actu-ia";
+    if (/(programme (du jour|d.aujourd.hui|de la journee)|qu.est[- ]ce que j.ai (de prevu|au programme) aujourd|ma journee)/.test(n)) return "programme";
     if (/(briefing|quoi de neuf|programme du jour|resume du jour|point du matin|fais (moi )?le point)/.test(n)) return "briefing";
     if (/(mail|courrier|boite)/.test(n) && /(lis|resume|quoi|combien|nouveau|important|urgent|recu|j'ai|ai-je|y a)/.test(n)) return "mails";
     if (/(post|publication|reseau|linkedin|facebook|buffer|fiche google)/.test(n) && /(quel|prochain|a venir|programme|prevu|cette semaine|demain|lis)/.test(n)) return "posts";
@@ -300,6 +301,7 @@
     if (intention === "posts") return textePosts();
     if (intention.startsWith("agenda")) return texteAgenda(intention);
     if (intention === "actu-ia") return texteActu();
+    if (intention === "programme") return texteProgramme();
     return texteBriefing();
   }
 
@@ -509,7 +511,7 @@
     return baseGmail(m) + "#label/" + encodeURIComponent(lib).replace(/%20/g, "+");
   }
   function afficherBriefing() {
-    tableauMails(); afficherAgenda(); archiverActu(); afficherActu();
+    tableauMails(); afficherAgenda(); archiverActu(); afficherActu(); afficherProgramme();
     const maj = $("#briefingMaj");
     if (!briefing) { maj.textContent = "Aucun briefing chargé"; return; }
     const g = dateSure(briefing.genere_le);
@@ -812,7 +814,7 @@
     a.addEventListener("click", () => {
       // on l'affiche tout de suite dans le panneau Agenda, sans attendre le briefing du lendemain
       ajoutsAgenda.push({ titre: ev.titre, debut: ev.journee ? ev.debut : dateParis(ev.debut).toISOString(), fin: ev.journee ? "" : dateParis(ev.fin).toISOString(), journee: ev.journee, lieu: ev.lieu, ajoute: true });
-      store.set("agendaAjouts", ajoutsAgenda); afficherAgenda();
+      store.set("agendaAjouts", ajoutsAgenda); afficherAgenda(); afficherProgramme();
       a.textContent = "Ouvert dans Google Agenda ✓"; a.classList.add("fait");
     }, { once: true });
     p.after(a);
@@ -822,12 +824,52 @@
     await parler(dit);
   }
 
+  /* ---------- Programme du jour : rendez-vous, publications et rappels d'aujourd'hui, dans l'ordre ---------- */
+  function programmeDuJour() {
+    const auj = jourCle(new Date()), l = [];
+    evenements().filter((e) => jourCle(e.d) === auj).forEach((e) => l.push({ d: e.journee ? null : e.d, type: "Rendez-vous", titre: e.titre, detail: e.lieu || "", lien: lienAgenda(e) }));
+    (Array.isArray(briefing && briefing.publications) ? briefing.publications : []).forEach((p) => {
+      const d = dateSure(p.date); if (!d || jourCle(d) !== auj) return;
+      l.push({ d, type: "Publication", titre: p.titre || "Publication", detail: [(p.reseaux || []).join(", "), p.statut === "brouillon" ? "brouillon à valider" : p.statut].filter(Boolean).join(" · ") });
+    });
+    (Array.isArray(briefing && briefing.rappels) ? briefing.rappels : []).forEach((r) => {
+      const d = dateSure(r.date); if (!d || jourCle(d) !== auj) return;
+      l.push({ d: /T\d{2}:\d{2}/.test(r.date) ? d : null, type: "Rappel", titre: r.titre || "Rappel", detail: r.detail || "" });
+    });
+    return l.sort((a, b) => (a.d ? a.d.getTime() : 0) - (b.d ? b.d.getTime() : 0));
+  }
+  function afficherProgramme() {
+    const ul = $("#programmeJour"); if (!ul) return;
+    if (!briefing && !ajoutsAgenda.length) { vide(ul, "Le programme arrive avec le briefing du matin."); return; }
+    const l = programmeDuJour(); ul.innerHTML = "";
+    if (!l.length) {
+      const p = evenements()[0];
+      vide(ul, "Rien de programmé aujourd'hui." + (p ? ` Prochain rendez-vous : ${nomJour(p.d).toLowerCase()}${p.journee ? "" : " à " + fmtHeure.format(p.d)}, ${p.titre}.` : ""));
+      return;
+    }
+    l.forEach((x) => {
+      const e = document.createElement("li"); e.className = "evt";
+      if (x.d && x.d <= new Date() && x.type === "Rendez-vous") e.classList.add("maintenant");
+      const h = document.createElement("span"); h.className = "evt-heure" + (x.d ? "" : " journee"); h.textContent = x.d ? fmtHeure.format(x.d) : "Journée";
+      const bloc = document.createElement("span");
+      const t = document.createElement(x.lien ? "a" : "span"); t.className = "evt-titre" + (x.lien ? " lien-mail" : ""); t.textContent = x.titre;
+      if (x.lien) { t.href = x.lien; t.target = "_blank"; t.rel = "noopener"; }
+      const m = document.createElement("span"); m.className = "evt-lieu"; m.textContent = x.type + (x.detail ? " · " + x.detail : "");
+      bloc.append(t, m); e.append(h, bloc); ul.appendChild(e);
+    });
+  }
+  function texteProgramme() {
+    const l = programmeDuJour();
+    if (!l.length) return "Rien de programmé aujourd'hui.";
+    return `Au programme aujourd'hui : ` + l.map((x) => `${x.d ? "à " + fmtHeure.format(x.d).replace(":00", " h").replace(":", " h ") : "dans la journée"}, ${x.type === "Rendez-vous" ? "" : x.type.toLowerCase() + " : "}${x.titre}`).join(" ; ") + ".";
+  }
+
   function texteBriefing() {
     const h = Number(new Intl.DateTimeFormat("fr-FR", { hour: "numeric", hourCycle: "h23", timeZone: "Europe/Paris" }).format(new Date()));
     const salut = h < 18 ? "Bonjour" : "Bonsoir";
     let t = `${salut} ${cfg.surnom || "Gaël"}. `;
     if (briefing.exemple) t += "Attention, ceci est un briefing d'exemple, les données sont fictives. ";
-    if (Array.isArray(briefing.agenda)) t += texteAgenda("agenda") + " ";
+    t += texteProgramme() + " ";
     t += texteMails() + " " + textePosts();
     const av = briefing.a_valider || [];
     if (av.length) t += ` Vous avez ${pluriel(av.length, "chose", "choses")} à valider.`;
