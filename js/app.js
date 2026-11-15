@@ -274,36 +274,50 @@
     return new Error("Mon cerveau ne répond pas (erreur " + status + "). Réessayez dans un instant.");
   }
 
-  async function modeleGemini() {
-    if (cfg.modele) return cfg.modele;
-    const memo = store.get("modeleAutoGemini", null);
-    if (memo && Date.now() - memo.t < 7 * 864e5) return memo.m;
+  /* Liste ordonnée des modèles Gemini à essayer : les « flash » du plus récent au plus ancien,
+     puis les « flash-lite ». Si l'un est saturé (503) ou hors quota (429), on passe au suivant. */
+  async function modelesGemini() {
+    if (cfg.modele) return [cfg.modele];
+    const memo = store.get("modelesAutoGemini", null);
+    if (memo && Array.isArray(memo.l) && memo.l.length && Date.now() - memo.t < 3 * 864e5) return memo.l;
     const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=" + encodeURIComponent(cfg.cle));
     if (!r.ok) throw erreurHttp(r.status);
     const d = await r.json();
     const noms = (d.models || [])
       .filter((m) => (m.supportedGenerationMethods || []).includes("generateContent"))
-      .map((m) => m.name.replace("models/", ""))
-      .filter((n) => /^gemini-\d+(\.\d+)?-flash(-latest)?$/.test(n));
-    noms.sort((a, b) => parseFloat(b.split("-")[1]) - parseFloat(a.split("-")[1]));
-    const m = noms[0] || "gemini-flash-latest";
-    store.set("modeleAutoGemini", { m, t: Date.now() });
-    return m;
+      .map((m) => m.name.replace("models/", ""));
+    const version = (n) => parseFloat(n.split("-")[1]) || 0;
+    const tri = (re) => noms.filter((n) => re.test(n)).sort((a, b) => version(b) - version(a));
+    const l = [...tri(/^gemini-\d+(\.\d+)?-flash$/), ...tri(/^gemini-\d+(\.\d+)?-flash-lite$/)];
+    ["gemini-flash-latest", "gemini-flash-lite-latest"].forEach((n) => { if (noms.includes(n) || !l.length) l.push(n); });
+    store.set("modelesAutoGemini", { l, t: Date.now() });
+    return l;
   }
   async function appelGemini(passe, question) {
-    const modele = await modeleGemini();
+    const liste = await modelesGemini();
     const contents = passe.map((m) => ({ role: m.role === "user" ? "user" : "model", parts: [{ text: m.texte }] }));
     contents.push({ role: "user", parts: [{ text: question }] });
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modele)}:generateContent?key=${encodeURIComponent(cfg.cle)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ systemInstruction: { parts: [{ text: consignesSysteme() }] }, contents, generationConfig: { temperature: 0.7, maxOutputTokens: 2048 } }),
-    });
-    if (!r.ok) { store.set("modeleAutoGemini", null); throw erreurHttp(r.status); }
-    const d = await r.json();
-    const t = (d.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("").trim();
-    if (!t) throw new Error("Je n'ai pas trouvé quoi répondre. Pouvez-vous reformuler ?");
-    return t;
+    const corps = JSON.stringify({ systemInstruction: { parts: [{ text: consignesSysteme() }] }, contents, generationConfig: { temperature: 0.7, maxOutputTokens: 2048 } });
+    let derniere = 503;
+    for (let i = 0; i < Math.min(liste.length, 5); i++) {
+      let r;
+      try {
+        r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(liste[i])}:generateContent?key=${encodeURIComponent(cfg.cle)}`, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: corps });
+      } catch { throw new Error("Je n'arrive pas à joindre Google. Vérifiez la connexion internet."); }
+      if (r.ok) {
+        const d = await r.json();
+        const t = (d.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("").trim();
+        if (!t) throw new Error("Je n'ai pas trouvé quoi répondre. Pouvez-vous reformuler ?");
+        if (i > 0 && !cfg.modele) store.set("modelesAutoGemini", { l: [liste[i], ...liste.filter((x) => x !== liste[i])], t: Date.now() }); // celui qui marche passe en tête
+        return t;
+      }
+      derniere = r.status;
+      if (![429, 500, 502, 503, 504, 404].includes(r.status)) break; // clé refusée, etc. : inutile d'insister
+    }
+    if (derniere === 404 && !cfg.modele) store.set("modelesAutoGemini", null);
+    if (derniere >= 500) throw new Error("Les serveurs de Google sont saturés en ce moment. Réessayez dans une minute.");
+    throw erreurHttp(derniere);
   }
 
   async function modeleGroq() {
@@ -503,7 +517,7 @@
     cfg.surnom = $("#surnom").value.trim() || "Gaël";
     cfg.vitesse = parseFloat($("#vitesse").value); cfg.hauteur = parseFloat($("#hauteur").value);
     cfg.voix = $("#voix").value;
-    if (ancien !== cfg.fournisseur + cfg.cle) { store.set("modeleAutoGemini", null); store.set("modeleAutoGroq", null); }
+    if (ancien !== cfg.fournisseur + cfg.cle) { store.set("modelesAutoGemini", null); store.set("modeleAutoGroq", null); }
     ["fournisseur", "cle", "modele", "surnom", "vitesse", "hauteur", "voix"].forEach((k) => store.set(k, cfg[k]));
   }
   $("#ouvrirReglages").addEventListener("click", () => { remplirReglages(); dlg.showModal(); });
