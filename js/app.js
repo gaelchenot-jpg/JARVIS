@@ -57,7 +57,7 @@
     const g = $("#graduations");
     for (let i = 0; i < 120; i++) {
       const a = (i / 120) * Math.PI * 2, maj = i % 10 === 0;
-      const r1 = 188, r2 = maj ? 172 : 180;
+      const r1 = 194, r2 = maj ? 180 : 187;
       const l = document.createElementNS(NS, "line");
       l.setAttribute("x1", 200 + Math.cos(a) * r1); l.setAttribute("y1", 200 + Math.sin(a) * r1);
       l.setAttribute("x2", 200 + Math.cos(a) * r2); l.setAttribute("y2", 200 + Math.sin(a) * r2);
@@ -87,7 +87,7 @@
     }, 110);
   }
   document.addEventListener("visibilitychange", () => {
-    document.querySelectorAll(".anneau, .courbes").forEach((el) => (el.style.animationPlayState = document.hidden ? "paused" : ""));
+    document.querySelectorAll(".anneau, .fond-cercles").forEach((el) => (el.style.animationPlayState = document.hidden ? "paused" : ""));
   });
 
   /* ---------- Fil de conversation ---------- */
@@ -376,6 +376,7 @@
   function vide(ul, txt) { ul.innerHTML = ""; ul.appendChild(li((e) => { e.className = "vide"; e.textContent = txt; })); }
 
   function afficherBriefing() {
+    tableauMails();
     const maj = $("#briefingMaj");
     if (!briefing) { maj.textContent = "Aucun briefing chargé"; return; }
     const g = dateSure(briefing.genere_le);
@@ -521,7 +522,7 @@
     ["fournisseur", "cle", "modele", "surnom", "vitesse", "hauteur", "voix"].forEach((k) => store.set(k, cfg[k]));
   }
   $("#ouvrirReglages").addEventListener("click", () => { remplirReglages(); dlg.showModal(); });
-  dlg.addEventListener("close", enregistrer);
+  dlg.addEventListener("close", () => { enregistrer(); tableauEtats(); });
   dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
   document.querySelectorAll('input[name="fournisseur"]').forEach((r) => r.addEventListener("change", () => { cfg.fournisseur = r.value; $("#cle").placeholder = r.value === "groq" ? "Clé Groq (commence par gsk_)" : "Clé Google AI Studio (commence par AIza)"; }));
   $("#vitesse").addEventListener("input", (e) => ($("#vitesseVal").textContent = virgule(e.target.value)));
@@ -548,8 +549,68 @@
     $("#champ").value = ""; traiter(v);
   });
 
+
+  /* ---------- Tableau de bord : règle des jours, jauges, états ---------- */
+  const arc = (id, pct) => { const e = $(id); if (e) e.style.strokeDasharray = `${Math.max(0, Math.min(100, pct))} 100`; };
+  function tableauDate() {
+    const p = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Paris" }).formatToParts(new Date());
+    const jour = Number(p.find((x) => x.type === "day").value), mois = p.find((x) => x.type === "month").value, an = Number(p.find((x) => x.type === "year").value);
+    const moisNum = new Date(`${mois} 1, 2000`).getMonth();
+    const idx = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"].indexOf(mois);
+    const total = new Date(an, (idx < 0 ? moisNum : idx) + 1, 0).getDate() || 30;
+    const regle = $("#regle");
+    if (regle.dataset.jour !== String(jour)) {
+      regle.dataset.jour = jour; regle.innerHTML = "";
+      for (let d = 1; d <= total; d++) {
+        const s = document.createElement("span"); s.textContent = String(d).padStart(2, "0");
+        if (d === jour) s.className = "auj proche"; else { if (d < jour) s.classList.add("passe"); if (Math.abs(d - jour) <= 4) s.classList.add("proche"); }
+        regle.appendChild(s);
+      }
+    }
+    $("#jourTxt").textContent = String(jour).padStart(2, "0"); $("#moisTxt").textContent = mois;
+    arc("#arcJour", (jour / total) * 100);
+  }
+  function tableauEtats() {
+    const c = navigator.connection;
+    const r = $("#etatReseau");
+    r.textContent = navigator.onLine ? "En ligne" + (c && c.effectiveType ? " · " + c.effectiveType.toUpperCase() : "") : "Hors ligne"; r.classList.toggle("ko", !navigator.onLine);
+    const ce = $("#etatCerveau");
+    ce.textContent = cfg.cle ? (cfg.fournisseur === "groq" ? "Groq" : "Gemini") + " prêt" : "Clé manquante"; ce.classList.toggle("ko", !cfg.cle);
+  }
+  function tableauMails() {
+    const cats = (briefing && briefing.mails && briefing.mails.categories) || [];
+    const n = cats.reduce((s, c) => s + (c.nombre ?? (c.elements || []).length), 0);
+    $("#mailsTxt").textContent = briefing && briefing.mails ? String(n).padStart(2, "0") : "--";
+    arc("#arcMails", briefing && briefing.mails ? Math.max(4, (n / 20) * 100) : 0);
+    $("#jaugeMails").classList.toggle("alerte", cats.some((c) => (c.elements || []).some((x) => x.urgent)));
+  }
+  async function tableauMicro() {
+    const m = $("#etatMicro");
+    if (!Reco) { m.textContent = "Non géré ici"; m.classList.add("ko"); return; }
+    try {
+      const p = await navigator.permissions.query({ name: "microphone" });
+      const maj = () => { m.textContent = { granted: "Autorisé", denied: "Bloqué", prompt: "À autoriser" }[p.state] || "—"; m.classList.toggle("ko", p.state === "denied"); };
+      maj(); p.onchange = maj;
+    } catch { m.textContent = "Prêt"; }
+  }
+  if (navigator.getBattery) navigator.getBattery().then((b) => {
+    const maj = () => {
+      const pc = Math.round(b.level * 100);
+      $("#batterieTxt").textContent = pc; $("#batterieEtat").textContent = b.charging ? "en charge" : "énergie";
+      arc("#arcBatterie", pc); $("#jaugeBatterie").classList.toggle("alerte", pc <= 15 && !b.charging);
+    };
+    maj(); b.addEventListener("levelchange", maj); b.addEventListener("chargingchange", maj);
+  }).catch(() => {});
+  else { $("#batterieTxt").textContent = "OK"; $("#batterieEtat").textContent = "secteur"; arc("#arcBatterie", 100); }
+  window.addEventListener("online", tableauEtats); window.addEventListener("offline", tableauEtats);
+  setInterval(tableauDate, 60000);
+
+  document.querySelectorAll(".dock-btn[data-dire]").forEach((b) => b.addEventListener("click", () => { if (etat === "thinking") return; taire(); traiter(b.dataset.dire); }));
+  $("#dockSilence").addEventListener("click", () => { arreterEcoute(); taire(); consigne("Silence. Touchez le cercle quand vous voulez."); });
+
   /* ---------- Démarrage ---------- */
   rejouerHistorique();
+  tableauDate(); tableauEtats(); tableauMails(); tableauMicro();
   briefingParDefaut();
   if (!Reco) consigne("Ce navigateur ne sait pas écouter. Écrivez-moi ci-dessous, ou ouvrez Jarvis dans Chrome ou Edge.");
   else if (!cfg.cle) consigne("Touchez le cercle et parlez. Pour discuter librement, ajoutez d'abord la clé dans les réglages.");

@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Jarvis</title>
 <meta name="description" content="Assistant vocal personnel de Gaël : conversation, briefing du matin, mails et publications.">
-<meta name="theme-color" content="#101418">
+<meta name="theme-color" content="#020912">
 <meta name="robots" content="noindex, nofollow">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -19,24 +19,22 @@
 </head>
 <body data-state="idle">
 
-<svg class="fond" aria-hidden="true" preserveAspectRatio="xMidYMid slice" viewBox="0 0 1200 900">
-  <defs>
-    <filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 .93 0 0 0 0 .89 0 0 0 0 .84 0 0 0 .05 0"/></filter>
-  </defs>
-  <g class="courbes" fill="none" stroke="currentColor" stroke-width="1">
-    <path d="M-40 120 C 180 60, 320 220, 520 170 S 860 40, 1240 150"/>
-    <path d="M-40 190 C 200 130, 340 290, 540 240 S 880 110, 1240 220"/>
-    <path d="M-40 270 C 220 210, 360 370, 560 320 S 900 190, 1240 300"/>
-    <path d="M-40 620 C 160 700, 380 560, 600 640 S 940 760, 1240 660"/>
-    <path d="M-40 700 C 180 780, 400 640, 620 720 S 960 840, 1240 740"/>
-    <path d="M-40 780 C 200 860, 420 720, 640 800 S 980 920, 1240 820"/>
-  </g>
-  <rect width="100%" height="100%" filter="url(#grain)"/>
-</svg>
+<div class="fond" aria-hidden="true">
+  <svg class="fond-cercles" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid slice">
+    <g fill="none" stroke="currentColor">
+      <circle cx="500" cy="470" r="330" stroke-width="1"/>
+      <circle cx="500" cy="470" r="420" stroke-width="1" stroke-dasharray="2 10"/>
+      <circle cx="500" cy="470" r="520" stroke-width="1"/>
+      <path d="M500 470 L120 60 M500 470 L880 60 M500 470 L60 880 M500 470 L940 880" stroke-width="1"/>
+    </g>
+  </svg>
+</div>
+
+<div class="regle" id="regle" aria-hidden="true"></div>
 
 <header class="bandeau">
   <div class="marque">
-    <span class="marque-nom">Jarvis</span>
+    <span class="marque-nom">J.A.R.V.I.S</span>
     <span class="marque-etat" id="etatTexte">En veille</span>
   </div>
   <div class="horloge" aria-live="off">
@@ -54,19 +52,30 @@
     <button class="noyau" id="noyau" aria-label="Appuyer pour parler">
       <svg viewBox="0 0 400 400" aria-hidden="true">
         <g class="anneau anneau-graduations">
-          <circle cx="200" cy="200" r="188" class="trait-fin"/>
+          <circle cx="200" cy="200" r="194" class="trait-fin"/>
           <g id="graduations"></g>
         </g>
+        <g class="anneau anneau-segments">
+          <circle cx="200" cy="200" r="166" class="segments-halo"/>
+          <circle cx="200" cy="200" r="166" class="segments"/>
+        </g>
         <g class="anneau anneau-arcs">
-          <path d="M200 40 A160 160 0 0 1 360 200" class="arc arc-cuivre"/>
-          <path d="M200 360 A160 160 0 0 1 58 270" class="arc arc-eau"/>
-          <path d="M62 128 A160 160 0 0 1 120 62" class="arc arc-laiton"/>
+          <path d="M200 52 A148 148 0 0 1 348 200" class="arc-halo"/>
+          <path d="M200 52 A148 148 0 0 1 348 200" class="arc"/>
+          <path d="M200 348 A148 148 0 0 1 72 274" class="arc-halo"/>
+          <path d="M200 348 A148 148 0 0 1 72 274" class="arc"/>
+          <path d="M62 146 A148 148 0 0 1 112 81" class="arc arc-fin"/>
         </g>
-        <g class="anneau anneau-confluence">
-          <path d="M92 250 C 140 236, 168 206, 200 200 C 232 194, 262 160, 300 120" class="riviere"/>
-          <path d="M96 140 C 140 166, 170 196, 200 200" class="riviere riviere-2"/>
+        <g class="anneau anneau-pointilles">
+          <circle cx="200" cy="200" r="128" class="pointilles"/>
+          <path d="M200 84 A116 116 0 0 1 316 200 M200 316 A116 116 0 0 1 84 200" class="arc-moyen"/>
         </g>
-        <circle cx="200" cy="200" r="96" class="disque"/>
+        <g class="ailes">
+          <path d="M22 150 A186 186 0 0 0 22 250" /><path d="M378 150 A186 186 0 0 1 378 250" />
+        </g>
+        <circle cx="200" cy="200" r="100" class="disque-halo"/>
+        <circle cx="200" cy="200" r="100" class="disque"/>
+        <circle cx="200" cy="200" r="88" class="disque-interne"/>
         <g class="onde" id="onde"></g>
       </svg>
       <span class="noyau-texte" id="noyauTexte">Parler</span>
@@ -77,46 +86,83 @@
       <span class="bascule-piste" aria-hidden="true"></span>
       <span>Conversation continue</span>
     </label>
+
+    <nav class="dock" aria-label="Raccourcis">
+      <button class="dock-btn" data-dire="Lis-moi le briefing"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg><span>Briefing</span></button>
+      <button class="dock-btn" data-dire="Lis-moi mes mails"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v11H4zM4 7l8 6 8-6"/></svg><span>Mails</span></button>
+      <button class="dock-btn" data-dire="Quelles sont mes prochaines publications ?"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h14v10H9l-4 4z"/></svg><span>Posts</span></button>
+      <button class="dock-btn" data-dire="Quelle heure est-il ?"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><circle cx="12" cy="12" r="2.5"/></svg><span>Heure</span></button>
+      <button class="dock-btn" id="dockSilence"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 10v4h3l4 4V6L8 10zM16 9l5 6M21 9l-5 6"/></svg><span>Silence</span></button>
+    </nav>
   </section>
 
-  <section class="dialogue" aria-label="Conversation">
-    <ol class="fil" id="fil" aria-live="polite"></ol>
-    <form class="saisie" id="saisie" autocomplete="off">
-      <label class="sr" for="champ">Écrire à Jarvis</label>
-      <input id="champ" type="text" placeholder="Ou écrivez ici…" enterkeyhint="send">
-      <button type="submit" class="envoyer" aria-label="Envoyer">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h14M13 6l6 6-6 6"/></svg>
-      </button>
-    </form>
-  </section>
+  <aside class="colonne colonne-gauche">
+    <section class="panneau jauges" aria-label="État du système">
+      <h2>Système</h2>
+      <div class="jauges-rang">
+        <div class="jauge" id="jaugeJour">
+          <svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="42" class="jauge-fond"/><circle cx="50" cy="50" r="42" class="jauge-val" id="arcJour" pathLength="100"/></svg>
+          <div class="jauge-texte"><small id="moisTxt">—</small><strong id="jourTxt">--</strong></div>
+          <span class="jauge-nom">Date</span>
+        </div>
+        <div class="jauge" id="jaugeBatterie">
+          <svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="42" class="jauge-fond"/><circle cx="50" cy="50" r="42" class="jauge-val" id="arcBatterie" pathLength="100"/></svg>
+          <div class="jauge-texte"><small id="batterieEtat">énergie</small><strong id="batterieTxt">--</strong></div>
+          <span class="jauge-nom">Batterie</span>
+        </div>
+        <div class="jauge" id="jaugeMails">
+          <svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="42" class="jauge-fond"/><circle cx="50" cy="50" r="42" class="jauge-val" id="arcMails" pathLength="100"/></svg>
+          <div class="jauge-texte"><small>triés</small><strong id="mailsTxt">--</strong></div>
+          <span class="jauge-nom">Mails</span>
+        </div>
+      </div>
+      <ul class="etats">
+        <li><span>Réseau</span><b id="etatReseau">—</b></li>
+        <li><span>Cerveau</span><b id="etatCerveau">—</b></li>
+        <li><span>Micro</span><b id="etatMicro">—</b></li>
+      </ul>
+    </section>
 
-  <aside class="briefing" aria-label="Briefing du matin">
-    <div class="briefing-tete">
-      <h2>Briefing</h2>
-      <span class="briefing-maj" id="briefingMaj">Aucun briefing chargé</span>
-    </div>
+    <section class="panneau briefing" aria-label="Briefing du matin">
+      <div class="briefing-tete">
+        <h2>Briefing</h2>
+        <span class="briefing-maj" id="briefingMaj">Aucun briefing chargé</span>
+      </div>
+      <div class="bloc bloc-mails">
+        <h3>Mails</h3>
+        <p class="bloc-resume" id="mailsResume">Le tri de 8 h 30 n'est pas encore arrivé.</p>
+        <ul class="liste" id="mailsListe"></ul>
+      </div>
+      <div class="briefing-actions">
+        <button class="btn" id="lireBriefing">Me le lire</button>
+        <button class="btn btn-ligne" id="chargerBriefing">Charger le briefing</button>
+        <input type="file" id="fichierBriefing" accept="application/json,.json" hidden>
+      </div>
+    </section>
+  </aside>
 
-    <div class="bloc bloc-mails">
-      <h3>Mails</h3>
-      <p class="bloc-resume" id="mailsResume">Le tri de 8 h 30 n'est pas encore arrivé.</p>
-      <ul class="liste" id="mailsListe"></ul>
-    </div>
+  <aside class="colonne colonne-droite">
+    <section class="panneau dialogue" aria-label="Conversation">
+      <h2>Conversation</h2>
+      <ol class="fil" id="fil" aria-live="polite"></ol>
+      <form class="saisie" id="saisie" autocomplete="off">
+        <label class="sr" for="champ">Écrire à Jarvis</label>
+        <input id="champ" type="text" placeholder="Ou écrivez ici…" enterkeyhint="send">
+        <button type="submit" class="envoyer" aria-label="Envoyer">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+      </form>
+    </section>
 
-    <div class="bloc bloc-posts">
-      <h3>Publications à venir</h3>
+    <section class="panneau" aria-label="Publications à venir">
+      <h2>Publications</h2>
       <ul class="liste" id="postsListe"><li class="vide">Rien de prévu pour l'instant.</li></ul>
-    </div>
+    </section>
 
-    <div class="bloc bloc-faire">
-      <h3>À valider</h3>
+    <section class="panneau" aria-label="À valider">
+      <h2>À valider</h2>
       <ul class="liste" id="faireListe"><li class="vide">Rien en attente.</li></ul>
-    </div>
-
-    <div class="briefing-actions">
-      <button class="btn" id="lireBriefing">Me le lire</button>
-      <button class="btn btn-ligne" id="chargerBriefing">Charger le briefing</button>
-      <input type="file" id="fichierBriefing" accept="application/json,.json" hidden>
-    </div>
+    </section>
   </aside>
 </main>
 
