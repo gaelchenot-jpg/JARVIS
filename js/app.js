@@ -217,6 +217,8 @@
   function intentionLocale(t) {
     const n = norm(t);
     if (/^(stop|silence|tais[- ]toi|arrete|chut|ca suffit)\b/.test(n)) return "stop";
+    if (/^(retiens|souviens[- ]toi|n.oublie pas|memorise|note)\b/.test(n)) return "retenir";
+    if (/(qu.est[- ]ce que tu sais (sur|de) moi|que sais[- ]tu (sur|de) moi|tu te souviens de quoi|ta memoire)/.test(n)) return "memoire";
     if (/(ecri|redige|reponds|prepare|invente|propose)/.test(n)) return null; // demande de création : le cerveau s'en charge
     if (/(briefing|quoi de neuf|programme du jour|resume du jour|point du matin|fais (moi )?le point)/.test(n)) return "briefing";
     if (/(mail|courrier|boite)/.test(n) && /(lis|resume|quoi|combien|nouveau|important|urgent|recu|j'ai|ai-je|y a)/.test(n)) return "mails";
@@ -230,6 +232,16 @@
     ajouterMessage("vous", texte);
     const intention = intentionLocale(texte);
     if (intention === "stop") { taire(); consigne("D'accord, je me tais."); return; }
+    if (intention === "retenir") {
+      const fait = texte.replace(/^\s*(retiens|souviens[- ]toi|n.oublie pas|mémorise|memorise|note)\s*(bien\s*)?(que|de|qu')?\s*/i, "");
+      const ok = memoriserFait(fait.charAt(0).toUpperCase() + fait.slice(1));
+      const rep = ok ? "C'est noté, je m'en souviendrai." : "Je le savais déjà.";
+      ajouterMessage("jarvis", rep); await parler(rep); return;
+    }
+    if (intention === "memoire") {
+      const rep = memoire.length ? "Voici ce que j'ai retenu. " + memoire.join(". ") + "." : "Je n'ai encore rien retenu de particulier.";
+      ajouterMessage("jarvis", rep); await parler(rep); return;
+    }
     const suite = cfg.continu ? "Conversation continue : je réécoute après ma réponse." : "Touchez le cercle pour me répondre.";
     let reponse;
     if (intention) {
@@ -288,7 +300,8 @@
   /* ---------- Cerveau (Gemini ou Groq) ---------- */
   function consignesSysteme() {
     const n = new Date();
-    return [
+    const mem = (typeof memoire !== "undefined" && memoire.length) ? "Ce que tu as retenu de vos échanges précédents :\n" + memoire.map((x) => "- " + x).join("\n") : "";
+    return [mem,
       `Tu es Jarvis, l'assistant personnel vocal de ${cfg.surnom || "Gaël"}, qui dirige Confluence Numérique, une micro-entreprise de création de sites internet, applications et communication pour les commerces et artisans du Lot-et-Garonne (secteur Damazan, Aiguillon).`,
       `Nous sommes le ${fmtDate.format(n)}, il est ${fmtHeure.format(n)} (heure de Paris).`,
       "Tu réponds en français, avec un ton posé, chaleureux et un brin d'humour discret, comme un majordome efficace. Tu le vouvoies.",
@@ -297,7 +310,7 @@
       "Tu n'as pas accès aux mails, au calendrier ni aux réseaux sociaux. Si on te pose une question sur les mails ou les publications du jour, propose de dire « lis-moi le briefing ».",
       "Tu n'envoies et ne publies jamais rien toi-même. Si tu rédiges un mail ou un post, précise que c'est un brouillon à relire.",
       "Si tu ne sais pas, dis-le simplement plutôt que d'inventer.",
-    ].join("\n");
+    ].filter(Boolean).join("\n");
   }
 
   /* Faut-il chercher sur internet ? (actualité, météo, prix, horaires, « cherche »…) */
@@ -305,16 +318,16 @@
     const n = norm(q);
     return /(cherche|recherche|internet|sur le web|sur google|actu|news|nouvelles|meteo|temps qu.il fait|il va pleuvoir|aujourd.hui|ce soir|demain|cette semaine|en ce moment|actuellement|derni[e]?r|recent|prix|combien coute|tarif|cours d|horaire|ouvert|ferme|adresse|telephone|numero de|resultat|score|qui a gagne|match|sortie|evenement|agenda|elections?|20[2-3]\d)/.test(n);
   }
-  async function demanderAuCerveau(question, surMorceau) {
+  async function demanderAuCerveau(question, surMorceau, options = {}) {
     if (!cfg.cle) throw new Error("Il me manque ma clé pour réfléchir. Ouvrez les réglages, en haut à droite, et collez la clé gratuite.");
     if (!navigator.onLine) throw new Error("Je suis hors ligne. Je peux encore lire le briefing, mais pas discuter.");
-    const passe = historique.slice(-12);
+    const passe = options.sansHistorique ? [] : historique.slice(-12);
     const ctrl = new AbortController(); appelEnCours = ctrl;
     // Garde-fou : si rien n'arrive en 25 secondes, on abandonne avec un message clair
     let premier = false, tropLong = false;
     const minuteur = setTimeout(() => { if (!premier) { tropLong = true; ctrl.abort(); } }, 40000);
     const morceau = surMorceau ? (t) => { premier = true; surMorceau(t); } : () => { premier = true; };
-    const web = besoinWeb(question);
+    const web = !options.sansWeb && besoinWeb(question);
     if (web && etat === "thinking") consigne("Je cherche sur internet…");
     try { return await (cfg.fournisseur === "groq" ? appelGroq(passe, question, morceau, ctrl.signal, web) : appelGemini(passe, question, morceau, ctrl.signal, web)); }
     catch (e) {
@@ -669,6 +682,7 @@
     $("#cle").placeholder = cfg.fournisseur === "groq" ? "Clé Groq (commence par gsk_)" : "Clé Google AI Studio (commence par AIza)";
     $("#retourCle").textContent = "";
     $("#codeBriefing").value = store.get("codeBriefing", ""); $("#retourCode").textContent = "";
+    afficherMemoire();
   }
   function enregistrer() {
     const ancien = cfg.fournisseur + cfg.cle;
@@ -777,6 +791,92 @@
 
   document.querySelectorAll(".dock-btn[data-dire]").forEach((b) => b.addEventListener("click", () => { if (etat === "thinking") return; taire(); traiter(b.dataset.dire); }));
   $("#dockSilence").addEventListener("click", () => { arreterEcoute(); taire(); consigne("Silence. Touchez le cercle quand vous voulez."); });
+
+  /* ---------- Mémoire durable ---------- */
+  let memoire = store.get("memoire", []);
+  function memoriserFait(f) {
+    const t = String(f || "").replace(/^[-•*\s]+/, "").trim();
+    if (t.length < 3) return false;
+    if (memoire.some((x) => norm(x) === norm(t))) return false;
+    memoire.push(t.slice(0, 240)); memoire = memoire.slice(-40); store.set("memoire", memoire);
+    return true;
+  }
+  function afficherMemoire() {
+    const ul = $("#memoireListe"); if (!ul) return; ul.innerHTML = "";
+    if (!memoire.length) { const l = document.createElement("li"); l.className = "vide"; l.textContent = "Rien pour l'instant."; ul.appendChild(l); return; }
+    memoire.forEach((f, i) => {
+      const l = document.createElement("li");
+      const s = document.createElement("span"); s.textContent = f;
+      const b = document.createElement("button"); b.type = "button"; b.className = "memoire-suppr"; b.textContent = "Oublier"; b.setAttribute("aria-label", "Oublier : " + f);
+      b.addEventListener("click", () => { memoire.splice(i, 1); store.set("memoire", memoire); afficherMemoire(); });
+      l.append(s, b); ul.appendChild(l);
+    });
+  }
+  async function retenirEssentiel() {
+    const echanges = historique.slice(-30);
+    if (echanges.length < 2 || !cfg.cle) return 0;
+    const transcription = echanges.map((m) => (m.role === "user" ? "Gaël : " : "Jarvis : ") + m.texte).join("\n").slice(-12000);
+    const consigneMem = "Voici une conversation entre Gaël et son assistant Jarvis.\n\n" + transcription +
+      "\n\nDéjà mémorisé :\n" + (memoire.map((x) => "- " + x).join("\n") || "(rien)") +
+      "\n\nExtrais au maximum 5 informations NOUVELLES et durables à retenir (préférences de Gaël, décisions, projets, rappels, personnes importantes). Ignore les bavardages et ce qui est déjà mémorisé. N'inclus aucune donnée sensible (mot de passe, numéro de carte, santé). Réponds uniquement par des lignes qui commencent par « - », ou par RIEN.";
+    const r = await demanderAuCerveau(consigneMem, null, { sansHistorique: true, sansWeb: true });
+    let n = 0;
+    r.split("\n").filter((l) => /^\s*[-•*]/.test(l)).forEach((l) => { if (memoriserFait(l)) n++; });
+    return n;
+  }
+  function nouvelleConversation(garder) {
+    historique = []; store.set("historique", []); $("#fil").innerHTML = "";
+    if (!garder) consigne("Conversation effacée.");
+  }
+  $("#nouvelleConv").addEventListener("click", async () => {
+    const out = $("#retourConv"), btn = $("#nouvelleConv");
+    if (!historique.length) { out.textContent = "La conversation est déjà vide."; out.className = "retour"; return; }
+    taire(); btn.disabled = true; out.className = "retour"; out.textContent = "Je retiens l'essentiel…";
+    let n = 0, echec = false;
+    try { n = await retenirEssentiel(); } catch { echec = true; }
+    if (echec && !confirm("Je n'ai pas pu résumer la conversation (cerveau injoignable). L'effacer quand même, sans rien retenir ?")) {
+      out.textContent = "Conversation conservée."; btn.disabled = false; return;
+    }
+    nouvelleConversation(true);
+    out.className = "retour ok";
+    out.textContent = echec ? "Conversation effacée." : n ? `Conversation effacée. J'ai retenu ${n} ${n > 1 ? "choses" : "chose"}.` : "Conversation effacée. Rien de nouveau à retenir.";
+    btn.disabled = false;
+    setTimeout(() => { out.textContent = ""; }, 6000);
+  });
+  $("#toutOublier").addEventListener("click", () => {
+    if (!confirm("Effacer tout ce que Jarvis a retenu ?")) return;
+    memoire = []; store.set("memoire", []); afficherMemoire();
+  });
+
+  /* ---------- Panneaux repliables (touchez le titre), effet hologramme ---------- */
+  (function panneauxRepliables() {
+    const plies = new Set(store.get("panneauxPlies", []));
+    const sansMouvement = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+    document.querySelectorAll(".panneau").forEach((p, i) => {
+      const h2 = p.querySelector("h2"); if (!h2) return;
+      const cle = p.getAttribute("aria-label") || "p" + i;
+      const tete = h2.closest(".briefing-tete") || h2;
+      const corps = document.createElement("div"); corps.className = "panneau-corps"; corps.id = "corps-" + i;
+      const interieur = document.createElement("div"); interieur.className = "panneau-interieur";
+      [...p.children].filter((c) => c !== tete).forEach((c) => interieur.appendChild(c));
+      corps.appendChild(interieur); p.appendChild(corps);
+      const b = document.createElement("button"); b.type = "button"; b.className = "panneau-bascule";
+      b.setAttribute("aria-controls", corps.id);
+      b.textContent = h2.textContent; h2.textContent = ""; h2.appendChild(b);
+      const appliquer = (plie, anime) => {
+        p.classList.remove("holo-on", "holo-off");
+        if (anime && !sansMouvement()) { void p.offsetWidth; p.classList.add(plie ? "holo-off" : "holo-on"); }
+        p.classList.toggle("plie", plie);
+        corps.inert = plie;
+        b.setAttribute("aria-expanded", String(!plie));
+      };
+      appliquer(plies.has(cle), false);
+      b.addEventListener("click", () => {
+        const plie = !p.classList.contains("plie"); appliquer(plie, true);
+        plie ? plies.add(cle) : plies.delete(cle); store.set("panneauxPlies", [...plies]);
+      });
+    });
+  })();
 
   /* ---------- Démarrage ---------- */
   rejouerHistorique();

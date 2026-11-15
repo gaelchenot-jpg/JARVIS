@@ -281,6 +281,7 @@ fieldset > .btn { align-self: flex-start; }
 
 @media (prefers-reduced-motion: reduce) {
   .fond-cercles, .anneau, .msg, .reglages[open], .disque-halo { animation: none !important; }
+  .panneau-corps, .panneau.plie .panneau-corps, .panneau-interieur { transition: none !important; }
 }
 
 /* Liens vers Gmail dans le briefing */
@@ -293,3 +294,58 @@ fieldset > .btn { align-self: flex-start; }
 .sous-liste a, .sous-liste span { display: block; min-height: 28px; }
 .sous-liste li.urgent { border-left-color: var(--rouge); color: var(--texte); }
 .sous-liste .urgent strong::before { content: none; }
+
+/* Panneaux repliables */
+.panneau-bascule { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 10px; min-height: 32px; font: inherit; letter-spacing: inherit; color: inherit; }
+.panneau-bascule::before { content: ""; width: 8px; height: 8px; border-right: 2px solid var(--cyan); border-bottom: 2px solid var(--cyan); transform: rotate(45deg) translateY(-2px); transition: transform var(--rapide) var(--sortie); }
+.panneau.plie .panneau-bascule::before { transform: rotate(-45deg); }
+.panneau-bascule:focus-visible { outline: 2px solid var(--cyan-vif); outline-offset: 4px; }
+.panneau.plie { padding-bottom: 6px; }
+.panneau.plie h2 { margin-bottom: 8px; }
+
+/* Repli / dépli : la hauteur glisse, le contenu s'allume comme un hologramme */
+.panneau-corps { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 520ms cubic-bezier(.7, 0, .2, 1), visibility 0s; position: relative; }
+.panneau-interieur { min-height: 0; overflow: hidden; }
+.panneau.plie .panneau-corps { grid-template-rows: 0fr; visibility: hidden; transition: grid-template-rows 420ms cubic-bezier(.7, 0, .2, 1), visibility 0s 420ms; }
+.panneau.plie .panneau-interieur { opacity: 0; transition: opacity 260ms ease-in; }
+
+/* Ligne de balayage lumineuse */
+.panneau > .panneau-corps::after {
+  content: ""; position: absolute; left: -16px; right: -16px; top: 0; height: 2px; pointer-events: none; opacity: 0;
+  background: linear-gradient(90deg, transparent, var(--cyan-vif) 20%, #fff 50%, var(--cyan-vif) 80%, transparent);
+  box-shadow: 0 0 14px 3px rgb(22 224 220 / .7);
+}
+.panneau.holo-on > .panneau-corps::after { animation: balayage-bas 560ms cubic-bezier(.7, 0, .2, 1) both; }
+.panneau.holo-off > .panneau-corps::after { animation: balayage-haut 420ms cubic-bezier(.7, 0, .2, 1) both; }
+@keyframes balayage-bas { 0% { opacity: 1; top: 0; } 85% { opacity: 1; top: calc(100% - 2px); } 100% { opacity: 0; top: calc(100% - 2px); } }
+@keyframes balayage-haut { 0% { opacity: 1; top: calc(100% - 2px); } 90% { opacity: 1; top: 0; } 100% { opacity: 0; top: 0; } }
+
+/* Le contenu se matérialise ligne par ligne, avec un scintillement */
+.panneau.holo-on .panneau-interieur { animation: materialise 620ms steps(1, end) both, devoile 560ms cubic-bezier(.7, 0, .2, 1) both; }
+@keyframes devoile { from { clip-path: inset(0 0 100% 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes materialise {
+  0% { opacity: .2; filter: drop-shadow(0 0 6px var(--cyan)); }
+  15% { opacity: .8; }
+  25% { opacity: .35; }
+  40% { opacity: 1; }
+  55% { opacity: .6; }
+  70% { opacity: 1; filter: drop-shadow(0 0 3px rgb(22 224 220 / .6)); }
+  100% { opacity: 1; filter: none; }
+}
+/* Les équerres du panneau clignotent pendant l'effet */
+.panneau.holo-on::before, .panneau.holo-on::after, .panneau.holo-off::before, .panneau.holo-off::after { animation: equerre 500ms steps(2, end) 2; }
+@keyframes equerre { 50% { border-color: #fff; } }
+.panneau.plie .briefing-maj { margin-bottom: 4px; }
+.briefing-tete .briefing-maj { margin-bottom: 14px; }
+
+/* Nouvelle conversation */
+.conv-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+.btn-petit { min-height: 40px; padding: 0 14px; font-size: .9rem; }
+
+/* Mémoire */
+.memoire-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; max-height: 240px; overflow-y: auto; }
+.memoire-liste li { display: flex; gap: 10px; align-items: baseline; justify-content: space-between; padding: 8px 0; border-top: 1px solid var(--trame); font-size: .92rem; }
+.memoire-liste li:first-child { border-top: 0; }
+.memoire-liste .vide { color: #4d8a8c; }
+.memoire-suppr { flex: none; background: none; border: 0; color: var(--texte-doux); text-decoration: underline; text-underline-offset: 3px; font-size: .85rem; min-height: 32px; }
+.memoire-suppr:hover { color: var(--rouge); }
