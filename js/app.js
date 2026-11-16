@@ -11,6 +11,22 @@
     set(k, v) { try { localStorage.setItem("jarvis." + k, JSON.stringify(v)); } catch {} },
   };
 
+  /* Coffre de secours : la clé et le code du briefing sont aussi gardés dans IndexedDB,
+     et on demande au navigateur de ne pas purger le stockage de Jarvis. */
+  const SECRETS = ["fournisseur", "cle", "modele", "codeBriefing"];
+  function coffre(mode, fn) {
+    return new Promise((ok) => {
+      try {
+        const r = indexedDB.open("jarvis-coffre", 1);
+        r.onupgradeneeded = () => r.result.createObjectStore("reglages");
+        r.onerror = () => ok(null);
+        r.onsuccess = () => { try { const t = r.result.transaction("reglages", mode); const req = fn(t.objectStore("reglages")); t.oncomplete = () => ok(req && req.result); t.onerror = () => ok(null); } catch { ok(null); } };
+      } catch { ok(null); }
+    });
+  }
+  function sauverCoffre() { const o = {}; SECRETS.forEach((k) => (o[k] = store.get(k, ""))); if (o.cle || o.codeBriefing) coffre("readwrite", (s) => s.put(o, "secrets")); }
+  try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch {}
+
   const cfg = {
     fournisseur: store.get("fournisseur", "gemini"),
     cle: store.get("cle", ""),
@@ -1081,6 +1097,7 @@
   const dlg = $("#reglages");
   const virgule = (v) => String(v).replace(".", ",");
   function remplirReglages() {
+    champsTouches.clear();
     document.querySelector(`input[name="fournisseur"][value="${cfg.fournisseur}"]`).checked = true;
     $("#cle").value = cfg.cle; $("#modele").value = cfg.modele; $("#surnom").value = cfg.surnom;
     $("#vitesse").value = cfg.vitesse; $("#vitesseVal").textContent = virgule(cfg.vitesse);
@@ -1094,14 +1111,20 @@
   function enregistrer() {
     const ancien = cfg.fournisseur + cfg.cle;
     cfg.fournisseur = document.querySelector('input[name="fournisseur"]:checked').value;
-    cfg.cle = $("#cle").value.replace(/\s+/g, ""); cfg.modele = $("#modele").value.trim();
+    const cleSaisie = $("#cle").value.replace(/\s+/g, "");
+    if (cleSaisie || champsTouches.has("cle")) cfg.cle = cleSaisie; // un champ vide non touché n'efface jamais la clé
+    cfg.modele = $("#modele").value.trim();
     cfg.surnom = $("#surnom").value.trim() || "Gaël";
     cfg.vitesse = parseFloat($("#vitesse").value); cfg.hauteur = parseFloat($("#hauteur").value);
     cfg.voix = $("#voix").value;
     if (ancien !== cfg.fournisseur + cfg.cle) { store.set("modelesAutoGemini2", null); store.set("modeleAutoGroq", null); }
     ["fournisseur", "cle", "modele", "surnom", "vitesse", "hauteur", "voix"].forEach((k) => store.set(k, cfg[k]));
-    store.set("codeBriefing", normCode($("#codeBriefing").value));
+    const codeSaisi = normCode($("#codeBriefing").value);
+    if (codeSaisi || champsTouches.has("codeBriefing")) store.set("codeBriefing", codeSaisi);
+    sauverCoffre();
   }
+  const champsTouches = new Set();
+  ["cle", "codeBriefing"].forEach((id) => $("#" + id).addEventListener("input", () => champsTouches.add(id)));
   $("#testerCode").addEventListener("click", async () => {
     enregistrer();
     const out = $("#retourCode"); out.className = "retour"; out.textContent = "Chargement…";
@@ -1349,6 +1372,15 @@
   /* ---------- Démarrage ---------- */
   rejouerHistorique();
   tableauDate(); tableauEtats(); tableauMails(); tableauMicro();
+  // Si le navigateur a vidé le stockage, on récupère la clé et le code depuis le coffre.
+  coffre("readonly", (s) => s.get("secrets")).then((o) => {
+    if (!o) { sauverCoffre(); return; }
+    let repris = false;
+    if (!cfg.cle && o.cle) { cfg.cle = o.cle; cfg.fournisseur = o.fournisseur || cfg.fournisseur; cfg.modele = o.modele || ""; ["fournisseur", "cle", "modele"].forEach((k) => store.set(k, cfg[k])); repris = true; }
+    if (!store.get("codeBriefing", "") && o.codeBriefing) { store.set("codeBriefing", o.codeBriefing); repris = true; chargerBriefingChiffre(false); }
+    if (repris) { tableauEtats(); consigne("Réglages récupérés depuis la sauvegarde."); }
+    else sauverCoffre();
+  });
   briefingParDefaut();
   if (!Reco) consigne("Ce navigateur ne sait pas écouter. Écrivez-moi ci-dessous, ou ouvrez Jarvis dans Chrome ou Edge.");
   else if (!cfg.cle) consigne("Touchez le cercle et parlez. Pour discuter librement, ajoutez d'abord la clé dans les réglages.");
