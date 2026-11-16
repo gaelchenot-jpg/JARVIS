@@ -1160,6 +1160,31 @@
     } catch (e) { out.textContent = e.message; out.className = "retour ko"; }
     $("#testerCle").disabled = false;
   });
+  /* Sauvegarde dans un fichier : survit à l'effacement des données du navigateur. */
+  const A_SAUVER = ["fournisseur", "cle", "modele", "codeBriefing", "surnom", "vitesse", "hauteur", "voix", "continu", "memoire", "actuGardees", "agendaAjouts"];
+  $("#sauverFichier").addEventListener("click", () => {
+    enregistrer();
+    const o = { jarvis: 1, date: new Date().toISOString() };
+    A_SAUVER.forEach((k) => (o[k] = store.get(k, null)));
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(o, null, 1)], { type: "application/json" }));
+    a.download = "jarvis-sauvegarde.json"; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    $("#retourSauvegarde").className = "retour ok"; $("#retourSauvegarde").textContent = "Sauvegarde créée dans Téléchargements.";
+  });
+  $("#restaurerFichier").addEventListener("click", () => $("#fichierSauvegarde").click());
+  $("#fichierSauvegarde").addEventListener("change", async (e) => {
+    const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+    const out = $("#retourSauvegarde");
+    try {
+      const o = JSON.parse(await f.text());
+      if (!o || o.jarvis !== 1) throw new Error("Ce fichier n'est pas une sauvegarde de Jarvis.");
+      A_SAUVER.forEach((k) => { if (o[k] !== null && o[k] !== undefined) store.set(k, o[k]); });
+      sauverCoffre();
+      out.className = "retour ok"; out.textContent = "Réglages restaurés. Jarvis redémarre…";
+      setTimeout(() => location.reload(), 900);
+    } catch (err) { out.className = "retour ko"; out.textContent = err.message.startsWith("Ce fichier") ? err.message : "Fichier illisible."; }
+  });
   $("#effacerConv").addEventListener("click", () => { historique = []; store.set("historique", []); $("#fil").innerHTML = ""; });
 
   $("#modeConversation").checked = cfg.continu;

@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preload" href="fonts/unbounded-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="css/jarvis.css?v=31">
+<link rel="stylesheet" href="css/jarvis.css?v=32">
 </head>
 <body data-state="idle">
 
@@ -278,6 +278,17 @@
     </fieldset>
 
     <fieldset>
+      <legend>Sauvegarde</legend>
+      <p class="aide">Effacer les données de navigation vide aussi les réglages de Jarvis. Gardez une sauvegarde dans un fichier (dossier Téléchargements) : elle survit à l'effacement et se recharge en un geste. Ce fichier contient votre clé : ne l'envoyez à personne.</p>
+      <div class="ligne-btns">
+        <button type="button" class="btn btn-ligne" id="sauverFichier">Créer la sauvegarde</button>
+        <button type="button" class="btn btn-ligne" id="restaurerFichier">Restaurer</button>
+        <input type="file" id="fichierSauvegarde" accept=".json,application/json" hidden>
+      </div>
+      <span class="retour" id="retourSauvegarde" role="status"></span>
+    </fieldset>
+
+    <fieldset>
       <legend>Mémoire de Jarvis</legend>
       <p class="aide">Ce que Jarvis retient de vos conversations. Ces notes accompagnent vos questions vers le cerveau (Groq ou Gemini) : n'y mettez rien de confidentiel sur vos clients.</p>
       <ul class="memoire-liste" id="memoireListe"></ul>
@@ -291,6 +302,6 @@
   </form>
 </dialog>
 
-<script src="js/app.js?v=31" defer></script>
+<script src="js/app.js?v=32" defer></script>
 </body>
 </html>
