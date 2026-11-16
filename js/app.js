@@ -383,17 +383,21 @@
       `Nous sommes le ${fmtDate.format(n)}, il est ${fmtHeure.format(n)} (heure de Paris).`,
       "Tu réponds en français, avec un ton posé, chaleureux et un brin d'humour discret, comme un majordome efficace. Tu le vouvoies.",
       "Tes réponses sont lues à voix haute : phrases courtes, pas de listes à puces, pas de markdown, pas d'émojis. Trois ou quatre phrases maximum, sauf si on te demande un texte long (un post, un mail) : dans ce cas tu l'écris en entier.",
-      "Tu peux chercher sur internet quand la question porte sur l'actualité, la météo, des prix, des horaires ou des faits récents : dans ce cas, cite en quelques mots ta source (le nom du site) sans lire d'adresse web.",
+      "Fiabilité avant tout : Gaël veut des réponses sûres. Pour tout fait qui peut changer ou que tu ne connais pas avec certitude (actualité, chiffres, prix, dates, lois, démarches, règles fiscales ou sociales, horaires, personnes, entreprises), appuie-toi sur une recherche internet et cite en quelques mots ta source (le nom du site, sans lire d'adresse web). Privilégie les sources officielles ou reconnues (service-public.fr, impots.gouv.fr, urssaf.fr, sites des organismes, grands médias).",
+      "N'invente jamais un chiffre, une date, un nom, un prix, une loi ou une citation. Si les sources se contredisent, dis-le. Si tu n'as pas pu vérifier, dis clairement « je n'ai pas pu le vérifier » et donne seulement ce dont tu es sûr. Sépare ce qui vient d'une source de ce qui est ton avis.",
       "Tu n'as pas accès directement aux mails, au calendrier ni aux réseaux sociaux. Si on te pose une question sur les mails, l'agenda ou les publications du jour, propose de dire « lis-moi le briefing ». Pour ajouter un rendez-vous, il suffit de dire par exemple « ajoute à l'agenda dentiste mardi à 14 h ».",
       "Gaël peut t'envoyer des photos ou des vidéos (sous forme d'images extraites) : décris ce que tu vois concrètement et réponds à sa question.",
       "Tu n'envoies et ne publies jamais rien toi-même. Si tu rédiges un mail ou un post, précise que c'est un brouillon à relire.",
-      "Si tu ne sais pas, dis-le simplement plutôt que d'inventer.",
+      "Si tu ne sais pas, dis-le simplement plutôt que d'inventer. Mieux vaut une réponse courte et sûre qu'une réponse complète et douteuse.",
     ].filter(Boolean).join("\n");
   }
 
   /* Faut-il chercher sur internet ? (actualité, météo, prix, horaires, « cherche »…) */
   function besoinWeb(q) {
     const n = norm(q);
+    // Question factuelle (qui, quand, combien, quel…) qui n'est pas une demande de rédaction : on vérifie sur internet
+    const redaction = /^(redige|ecris|ecrit|fais|fait|propose|traduis|resume|corrige|reformule|lis|lit|ajoute|raconte|invente|imagine|aide.moi a (ecrire|rediger))\b/.test(n);
+    if (!redaction && /(^|\b)(qui|quand|combien|quel|quelle|quels|quelles|ou se|ou est|est.ce que|c.est quoi|qu.est.ce que|que dit|comment fonctionne|comment faire pour|a quoi sert|pourquoi|loi|obligatoire|legal|droit|taxe|tva|urssaf|impot|aide|subvention|statut|chiffre|statistique|population|date)\b/.test(n)) return true;
     return /(cherche|recherche|internet|sur le web|sur google|actu|news|nouvelles|meteo|temps qu.il fait|il va pleuvoir|aujourd.hui|ce soir|demain|cette semaine|en ce moment|actuellement|derni[e]?r|recent|prix|combien coute|tarif|cours d|horaire|ouvert|ferme|adresse|telephone|numero de|resultat|score|qui a gagne|match|sortie|evenement|agenda|elections?|20[2-3]\d)/.test(n);
   }
   async function demanderAuCerveau(question, surMorceau, options = {}) {
@@ -472,7 +476,7 @@
     contents.push({ role: "user", parts });
     const sansReglage = store.get("geminiSansReglage", {});
     const corps = (modele) => {
-      const generationConfig = { temperature: 0.7, maxOutputTokens: 2048 };
+      const generationConfig = { temperature: web ? 0.3 : 0.6, maxOutputTokens: 2048 };
       // Réponse immédiate : on coupe la « réflexion » préalable quand le modèle l'accepte
       if (!sansReglage[modele]) generationConfig.thinkingConfig = parseFloat(modele.split("-")[1]) >= 3 ? { thinkingLevel: "minimal" } : { thinkingBudget: 0 };
       const corps = { systemInstruction: { parts: [{ text: consignesSysteme() }] }, contents, generationConfig };
@@ -541,7 +545,9 @@
         catch (e) { if (e.name === "AbortError") throw e; }   // sinon : modèle suivant, puis réponse sans recherche
       }
     }
-    return appelGroqModele(normal, passe, question, surMorceau, signal);
+    // La recherche n'a pas marché : on prévient le cerveau pour qu'il ne présente rien de douteux comme sûr
+    const q = web ? "[Note : la recherche internet n'a pas fonctionné. Si la réponse dépend de faits précis ou récents, dis clairement que tu n'as pas pu les vérifier.]\n" + question : question;
+    return appelGroqModele(normal, passe, q, surMorceau, signal);
   }
   // Modèles Groq qui acceptent les images : celui qui a marché, puis ceux de la liste du compte
   async function modelesVisionGroq() {
@@ -559,7 +565,7 @@
     const envoyer = (extra) => fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST", signal,
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + cfg.cle },
-      body: JSON.stringify(Object.assign({ model: modele, messages, temperature: 0.7, max_tokens: 1500, stream: true }, extra)),
+      body: JSON.stringify(Object.assign({ model: modele, messages, temperature: 0.5, max_tokens: 1500, stream: true }, extra)),
     });
     const extra = vision && /qwen/i.test(modele) ? { reasoning_format: "hidden" } : {};
     let r = await envoyer(extra);
