@@ -979,11 +979,12 @@
     alertesCles = {
       AGENDA: evts.length ? "agenda-" + auj + "-" + evts.length : "",
       MAILS: nMails ? "mails-" + (briefing.genere_le || auj) : "",
-      POSTS: posts.length ? "posts-" + auj + "-" + posts.length : "",
+      // posts du jour et éléments à valider : l'alerte se rallume seulement s'il y a du nouveau
+      POSTS: posts.length || aValider ? "posts-" + auj + "-" + posts.length + "-" + aValider + "-" + ((briefing && briefing.genere_le) || "") : "",
       ACTU: actu && ((actu.skills || []).length + (actu.infos || []).length + (actu.infos_generales || []).length) ? "actu-" + (actu.date || auj) : "",
       BRIEFING: prog.length ? "briefing-" + auj + "-" + prog.length : "",
     };
-    const toujours = { POSTS: aValider > 0, CERVEAU: !cfg.cle, "RÉSEAU": !navigator.onLine };   // à faire : reste rouge jusqu'à ce que ce soit réglé
+    const toujours = { CERVEAU: !cfg.cle, "RÉSEAU": !navigator.onLine };   // à faire : reste rouge jusqu'à ce que ce soit réglé
     Object.entries(etiquettes).forEach(([nom, e]) => {
       const cle = alertesCles[nom];
       const on = !!toujours[nom] || (!!cle && vus[nom] !== cle);
@@ -996,7 +997,7 @@
     if (!nom || el.classList.contains("plie") || r.bottom < 0 || r.top > innerHeight) return;
     if (alertesCles && alertesCles[nom]) { if (!vus) vus = store.get("vus", {}); vus[nom] = alertesCles[nom]; store.set("vus", vus); majSignaux(); }
   }
-  const PANNEAUX = { AGENDA: ".agenda", MAILS: ".briefing", POSTS: ".publications", ACTU: ".actu-ia", BRIEFING: ".briefing-general" };
+  const PANNEAUX = { AGENDA: ".agenda", MAILS: ".briefing", POSTS: ".publications, .a-valider", ACTU: ".actu-ia", BRIEFING: ".briefing-general" };
   if ("IntersectionObserver" in window) {
     const minuteurs = new Map();
     const obs = new IntersectionObserver((entrees) => entrees.forEach((en) => {
@@ -1004,7 +1005,7 @@
       if (en.isIntersecting) minuteurs.set(nom, setTimeout(() => marquerVu(en.target), 1500));
       else clearTimeout(minuteurs.get(nom));
     }), { threshold: 0.5 });
-    Object.entries(PANNEAUX).forEach(([nom, sel]) => { const el = document.querySelector(sel); if (el) { el.dataset.secteur = nom; obs.observe(el); } });
+    Object.entries(PANNEAUX).forEach(([nom, sel]) => document.querySelectorAll(sel).forEach((el) => { el.dataset.secteur = nom; obs.observe(el); }));
   }
   window.addEventListener("online", () => majSignaux()); window.addEventListener("offline", () => majSignaux());
 
