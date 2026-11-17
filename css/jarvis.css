@@ -107,6 +107,11 @@ body[data-state="listening"] .marque-etat, body[data-state="speaking"] .marque-e
 .secteur { fill: rgb(22 224 220 / .07); stroke: var(--cyan); stroke-width: 1.2; transition: fill 180ms, stroke 180ms; }
 .secteur.allume { fill: rgb(22 224 220 / .38); stroke: var(--cyan-vif); filter: drop-shadow(0 0 6px var(--cyan)); }
 .secteur-txt { fill: var(--cyan-vif); font: 500 9.5px var(--titre); letter-spacing: .12em; pointer-events: none; }
+/* Alerte : quelque chose à faire ou à voir dans ce domaine */
+.secteur.alerte, .secteur.alerte.allume { fill: rgb(255 74 61 / .4); stroke: var(--rouge); filter: drop-shadow(0 0 6px var(--rouge)); animation: alerteCouronne 1.1s ease-in-out infinite; }
+.secteur-txt.alerte { fill: #fff; animation: alerteCouronne 1.1s ease-in-out infinite; }
+@keyframes alerteCouronne { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .secteur.alerte, .secteur-txt.alerte { animation: none; } }
 .arc { stroke: var(--cyan-vif); stroke-width: 4; }
 .arc-halo { stroke: rgb(22 224 220 / .3); stroke-width: 12; }
 .arc-fin { stroke: var(--rouge); stroke-width: 3; }

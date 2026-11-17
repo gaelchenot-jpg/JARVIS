@@ -83,7 +83,7 @@
   })();
   /* Couronne de secteurs étiquetés, cellules lumineuses et hexagone du cœur */
   const pt = (r, a) => [200 + Math.cos(a) * r, 200 + Math.sin(a) * r];
-  const secteurs = [];
+  const secteurs = [], etiquettes = {};
   (function couronne() {
     const g = $("#couronne"), n = 12, r1 = 155, r2 = 181, ecart = 0.035;
     const noms = ["AGENDA", "MAILS", "POSTS", "ACTU", "BRIEFING", "VOIX", "MÉMOIRE", "RÉSEAU", "WEB", "SYSTÈME", "CERVEAU", "VEILLE"];
@@ -103,6 +103,7 @@
       const t = document.createElementNS(NS, "text"); t.setAttribute("class", "secteur-txt");
       const tp = document.createElementNS(NS, "textPath"); tp.setAttribute("href", "#" + id); tp.setAttribute("startOffset", "50%"); tp.setAttribute("text-anchor", "middle");
       tp.textContent = noms[i]; t.appendChild(tp); g.appendChild(t);
+      etiquettes[noms[i]] = { seg, t };
     }
     // un secteur s'allume tour à tour, comme un balayage de contrôle
     let k = 0;
@@ -962,7 +963,44 @@
     poserBalise(".briefing-general", prog.length, enCours ? now : prochainDe(prog));
     const dock = document.querySelector('.dock-btn[data-dire*="agenda"]');
     if (dock) dock.classList.toggle("signal-jour", evts.length > 0);
+    alertesCouronne(evts, posts, prog);
   }
+
+  /* Alertes rouges sur la couronne : le secteur clignote tant qu'il y a quelque chose à faire ou à voir.
+     « À voir » s'éteint quand le panneau correspondant est resté affiché à l'écran un instant. */
+  var vus, alertesCles = {};   // var : majSignaux peut être appelé avant cette ligne au démarrage
+  function alertesCouronne(evts, posts, prog) {
+    if (!vus) vus = store.get("vus", {});
+    const auj = jourCle(new Date());
+    const nMails = ((briefing && briefing.mails && briefing.mails.categories) || []).reduce((s, c) => s + (c.nombre ?? (c.elements || []).length), 0);
+    const aValider = Array.isArray(briefing && briefing.a_valider) ? briefing.a_valider.length : 0;
+    const actu = briefing && briefing.actu_ia;
+    // clé = ce qu'il y a à voir ; l'alerte reste tant que cette clé n'a pas été vue
+    alertesCles = {
+      AGENDA: evts.length ? "agenda-" + auj + "-" + evts.length : "",
+      MAILS: nMails ? "mails-" + (briefing.genere_le || auj) : "",
+      POSTS: posts.length ? "posts-" + auj + "-" + posts.length : "",
+      ACTU: actu && ((actu.skills || []).length + (actu.infos || []).length + (actu.infos_generales || []).length) ? "actu-" + (actu.date || auj) : "",
+      BRIEFING: prog.length ? "briefing-" + auj + "-" + prog.length : "",
+    };
+    const toujours = { POSTS: aValider > 0, CERVEAU: !cfg.cle, "RÉSEAU": !navigator.onLine };   // à faire : reste rouge jusqu'à ce que ce soit réglé
+    Object.entries(etiquettes).forEach(([nom, e]) => {
+      const cle = alertesCles[nom];
+      const on = !!toujours[nom] || (!!cle && vus[nom] !== cle);
+      e.seg.classList.toggle("alerte", on); e.t.classList.toggle("alerte", on);
+    });
+  }
+  const PANNEAUX = { AGENDA: ".agenda", MAILS: ".briefing", POSTS: ".publications", ACTU: ".actu-ia", BRIEFING: ".briefing-general" };
+  if ("IntersectionObserver" in window) {
+    const minuteurs = new Map();
+    const obs = new IntersectionObserver((entrees) => entrees.forEach((en) => {
+      const nom = en.target.dataset.secteur;
+      if (en.isIntersecting) minuteurs.set(nom, setTimeout(() => { if (alertesCles && alertesCles[nom]) { if (!vus) vus = store.get("vus", {}); vus[nom] = alertesCles[nom]; store.set("vus", vus); majSignaux(); } }, 1500));
+      else clearTimeout(minuteurs.get(nom));
+    }), { threshold: 0.5 });
+    Object.entries(PANNEAUX).forEach(([nom, sel]) => { const el = document.querySelector(sel); if (el) { el.dataset.secteur = nom; obs.observe(el); } });
+  }
+  window.addEventListener("online", () => majSignaux()); window.addEventListener("offline", () => majSignaux());
 
   /* ---------- Programme du jour : rendez-vous, publications et rappels d'aujourd'hui, dans l'ordre ---------- */
   function programmeDuJour() {
@@ -1144,7 +1182,7 @@
     } catch (e) { out.textContent = e.message; out.className = "retour ko"; }
   });
   $("#ouvrirReglages").addEventListener("click", () => { remplirReglages(); dlg.showModal(); });
-  dlg.addEventListener("close", () => { enregistrer(); tableauEtats(); });
+  dlg.addEventListener("close", () => { enregistrer(); tableauEtats(); majSignaux(); });
   dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
   document.querySelectorAll('input[name="fournisseur"]').forEach((r) => r.addEventListener("change", () => { cfg.fournisseur = r.value; $("#cle").placeholder = r.value === "groq" ? "Clé Groq (commence par gsk_)" : "Clé Google AI Studio (commence par AIza)"; }));
   $("#vitesse").addEventListener("input", (e) => ($("#vitesseVal").textContent = virgule(e.target.value)));
