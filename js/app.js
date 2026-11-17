@@ -159,19 +159,21 @@
   });
 
   /* ---------- Fil de conversation ---------- */
-  function ajouterMessage(qui, texte, erreur = false) {
+  function ajouterMessage(qui, texte, erreur = false, defiler = true) {
     const li = document.createElement("li");
     li.className = "msg " + (qui === "vous" ? "msg-vous" : "msg-jarvis") + (erreur ? " msg-erreur" : "");
     const s = document.createElement("span"); s.className = "msg-qui"; s.textContent = qui === "vous" ? "Vous" : "Jarvis";
     const p = document.createElement("p"); p.textContent = texte.replace(/ ([:;?!»])/g, "\u00a0$1").replace(/« /g, "«\u00a0");
     li.append(s, p);
     $("#fil").appendChild(li);
-    li.scrollIntoView({ block: "end", behavior: "smooth" });
+    const fil = $("#fil");
+    if (fil.scrollHeight > fil.clientHeight) fil.scrollTop = fil.scrollHeight;   // le fil défile à l'intérieur de son panneau
+    if (defiler) li.scrollIntoView({ block: "nearest", behavior: "smooth" });
     return p;
   }
   const typo = (t) => t.replace(/ ([:;?!»])/g, "\u00a0$1").replace(/« /g, "«\u00a0");
   function rejouerHistorique() {
-    historique.slice(-20).forEach((m) => ajouterMessage(m.role === "user" ? "vous" : "jarvis", m.texte));
+    historique.slice(-20).forEach((m) => ajouterMessage(m.role === "user" ? "vous" : "jarvis", m.texte, false, false));
   }
 
   /* ---------- Voix de sortie ---------- */
@@ -1402,6 +1404,9 @@
 
   /* ---------- Démarrage ---------- */
   rejouerHistorique();
+  // À l'ouverture, Jarvis reste en haut de page, sur le cercle
+  try { history.scrollRestoration = "manual"; } catch {}
+  window.scrollTo(0, 0); requestAnimationFrame(() => window.scrollTo(0, 0));
   tableauDate(); tableauEtats(); tableauMails(); tableauMicro();
   // Si le navigateur a vidé le stockage, on récupère la clé et le code depuis le coffre.
   coffre("readonly", (s) => s.get("secrets")).then((o) => {
