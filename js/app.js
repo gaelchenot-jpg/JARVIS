@@ -990,12 +990,18 @@
       e.seg.classList.toggle("alerte", on); e.t.classList.toggle("alerte", on);
     });
   }
+  // Un panneau compte comme « vu » seulement s'il est ouvert (pas réduit) et à l'écran
+  function marquerVu(el) {
+    const nom = el.dataset.secteur, r = el.getBoundingClientRect();
+    if (!nom || el.classList.contains("plie") || r.bottom < 0 || r.top > innerHeight) return;
+    if (alertesCles && alertesCles[nom]) { if (!vus) vus = store.get("vus", {}); vus[nom] = alertesCles[nom]; store.set("vus", vus); majSignaux(); }
+  }
   const PANNEAUX = { AGENDA: ".agenda", MAILS: ".briefing", POSTS: ".publications", ACTU: ".actu-ia", BRIEFING: ".briefing-general" };
   if ("IntersectionObserver" in window) {
     const minuteurs = new Map();
     const obs = new IntersectionObserver((entrees) => entrees.forEach((en) => {
       const nom = en.target.dataset.secteur;
-      if (en.isIntersecting) minuteurs.set(nom, setTimeout(() => { if (alertesCles && alertesCles[nom]) { if (!vus) vus = store.get("vus", {}); vus[nom] = alertesCles[nom]; store.set("vus", vus); majSignaux(); } }, 1500));
+      if (en.isIntersecting) minuteurs.set(nom, setTimeout(() => marquerVu(en.target), 1500));
       else clearTimeout(minuteurs.get(nom));
     }), { threshold: 0.5 });
     Object.entries(PANNEAUX).forEach(([nom, sel]) => { const el = document.querySelector(sel); if (el) { el.dataset.secteur = nom; obs.observe(el); } });
@@ -1411,7 +1417,7 @@
 
   /* ---------- Panneaux repliables (touchez le titre), effet hologramme ---------- */
   (function panneauxRepliables() {
-    const plies = new Set(store.get("panneauxPlies", []));
+    // À l'ouverture de l'appli, tous les panneaux sont réduits (demande de Gaël, 17/11)
     const sansMouvement = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
     document.querySelectorAll(".panneau").forEach((p, i) => {
       const h2 = p.querySelector("h2"); if (!h2) return;
@@ -1431,10 +1437,10 @@
         corps.inert = plie;
         b.setAttribute("aria-expanded", String(!plie));
       };
-      appliquer(plies.has(cle), false);
+      appliquer(true, false);
       b.addEventListener("click", () => {
         const plie = !p.classList.contains("plie"); appliquer(plie, true);
-        plie ? plies.add(cle) : plies.delete(cle); store.set("panneauxPlies", [...plies]);
+        if (!plie) setTimeout(() => marquerVu(p), 1500);   // ouvert et regardé : l'alerte rouge s'éteint
       });
     });
   })();
