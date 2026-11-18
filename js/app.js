@@ -36,6 +36,7 @@
     hauteur: store.get("hauteur", 0.9),
     surnom: store.get("surnom", "Gaël"),
     continu: store.get("continu", false),
+    metal: store.get("metal", false),
   };
   let historique = store.get("historique", []);
   let briefing = store.get("briefing", null);
@@ -180,16 +181,33 @@
   /* ---------- Voix de sortie ---------- */
   const synth = window.speechSynthesis;
   let voixDispo = [];
+  /* Voix « Jarvis HD » : modèles Piper libres, calculés dans le navigateur, identiques sur tous les appareils */
+  const VOIX_HD = [
+    { id: "hd:gilles", nom: "Jarvis HD · Gilles (homme)", modele: "fr-gilles-low", locuteur: 0 },
+    { id: "hd:tom", nom: "Jarvis HD · Tom (homme, net)", modele: "fr_FR-tom-medium", locuteur: 0, url: "https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/tom/medium/fr_FR-tom-medium.onnx" },
+    { id: "hd:grave", nom: "Jarvis HD · Grave (homme)", modele: "fr_FR-mls-medium", locuteur: 36, url: "https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/mls/medium/fr_FR-mls-medium.onnx" },
+  ];
+  const estHD = (id) => typeof id === "string" && id.startsWith("hd:");
+  function ajouterVoixHD(sel) {
+    const g = document.createElement("optgroup"); g.label = "Voix Jarvis HD (PC et téléphone)";
+    VOIX_HD.forEach((v) => { const o = document.createElement("option"); o.value = v.id; o.textContent = v.nom; g.appendChild(o); });
+    sel.appendChild(g);
+    if (estHD(cfg.voix)) sel.value = cfg.voix;
+  }
   function chargerVoix() {
-    if (!synth) return;
+    const sel = $("#voix");
+    if (!synth) { sel.innerHTML = ""; ajouterVoixHD(sel); if (!estHD(cfg.voix)) cfg.voix = VOIX_HD[0].id; sel.value = cfg.voix; return; }
     voixDispo = synth.getVoices().filter((v) => v.lang && v.lang.toLowerCase().startsWith("fr"));
-    const sel = $("#voix"); sel.innerHTML = "";
-    if (!voixDispo.length) { const o = document.createElement("option"); o.textContent = "Voix française par défaut"; o.value = ""; sel.appendChild(o); return; }
+    sel.innerHTML = "";
+    if (!voixDispo.length) { const o = document.createElement("option"); o.textContent = "Voix française par défaut"; o.value = ""; sel.appendChild(o); ajouterVoixHD(sel); return; }
     // On met en tête les voix naturelles (en ligne) et masculines quand on les reconnaît
     const score = (v) => (/(natural|online|neural|premium|enhanced)/i.test(v.name) ? 2 : 0) + (/(henri|thomas|paul|claude|remy|rémy|daniel|male|homme)/i.test(v.name) ? 1 : 0) + (/google/i.test(v.name) ? 1 : 0);
     voixDispo.sort((a, b) => score(b) - score(a));
-    voixDispo.forEach((v) => { const o = document.createElement("option"); o.value = v.name; o.textContent = `${v.name} (${v.lang})`; sel.appendChild(o); });
-    if (cfg.voix && voixDispo.some((v) => v.name === cfg.voix)) sel.value = cfg.voix; else cfg.voix = voixDispo[0].name;
+    const g = document.createElement("optgroup"); g.label = "Voix de cet appareil";
+    voixDispo.forEach((v) => { const o = document.createElement("option"); o.value = v.name; o.textContent = `${v.name} (${v.lang})`; g.appendChild(o); });
+    sel.appendChild(g); ajouterVoixHD(sel);
+    if (estHD(cfg.voix)) sel.value = cfg.voix;
+    else if (cfg.voix && voixDispo.some((v) => v.name === cfg.voix)) sel.value = cfg.voix; else cfg.voix = voixDispo[0].name;
   }
   if (synth) { chargerVoix(); synth.onvoiceschanged = chargerVoix; }
 
@@ -198,7 +216,64 @@
   }
   /* Diseur : une file de phrases. On peut lui en ajouter pendant qu'il parle,
      ce qui permet de commencer à parler avant d'avoir toute la réponse. */
+  /* ---- Voix HD + effet métallique (Web Audio) ---- */
+  let moteurHD = null, ctxAudio = null, sourceHD = null, jetonHD = 0;
+  function audio() { if (!ctxAudio) ctxAudio = new (window.AudioContext || window.webkitAudioContext)(); if (ctxAudio.state === "suspended") ctxAudio.resume(); return ctxAudio; }
+  function arretHD() { jetonHD++; try { sourceHD && sourceHD.stop(); } catch {} sourceHD = null; }
+  // Effet « IA » : filtre, résonance métallique (filtre en peigne), léger chorus et petit écho
+  function chaineMetal(ctx) {
+    const entree = ctx.createGain(), sortie = ctx.createGain();
+    const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 140;
+    const pic = ctx.createBiquadFilter(); pic.type = "peaking"; pic.frequency.value = 2800; pic.Q.value = 1; pic.gain.value = 4;
+    entree.connect(hp); hp.connect(pic);
+    const sec = ctx.createGain(); sec.gain.value = 0.75; pic.connect(sec); sec.connect(sortie);
+    const peigne = ctx.createDelay(); peigne.delayTime.value = 0.011; const retour = ctx.createGain(); retour.gain.value = 0.42;
+    const humide = ctx.createGain(); humide.gain.value = 0.45; pic.connect(peigne); peigne.connect(retour); retour.connect(peigne); peigne.connect(humide); humide.connect(sortie);
+    const chorus = ctx.createDelay(); chorus.delayTime.value = 0.006; const lfo = ctx.createOscillator(); lfo.frequency.value = 0.9; const prof = ctx.createGain(); prof.gain.value = 0.002;
+    lfo.connect(prof); prof.connect(chorus.delayTime); lfo.start(); const gch = ctx.createGain(); gch.gain.value = 0.3; pic.connect(chorus); chorus.connect(gch); gch.connect(sortie);
+    const echo = ctx.createDelay(); echo.delayTime.value = 0.09; const rech = ctx.createGain(); rech.gain.value = 0.22; const gecho = ctx.createGain(); gecho.gain.value = 0.18;
+    pic.connect(echo); echo.connect(rech); rech.connect(echo); echo.connect(gecho); gecho.connect(sortie);
+    sortie.gain.value = 0.9;
+    return { entree, sortie };
+  }
+  async function synthHD(texte) {
+    const v = VOIX_HD.find((x) => x.id === cfg.voix) || VOIX_HD[0];
+    if (!moteurHD) moteurHD = import("./voix-hd.js");
+    const m = await moteurHD;
+    let annonce = false;
+    return m.synthetiser(texte, { modele: v.modele, url: v.url, locuteur: v.locuteur, vitesse: cfg.vitesse, progres: (x) => { if (x < 1) { if (!annonce) annonce = true; consigne(`Je télécharge ma voix HD, une seule fois… ${Math.round(x * 100)} %`); } } });
+  }
+  function jouerHD({ pcm, rate }, jeton) {
+    return new Promise((fin) => {
+      if (jeton !== jetonHD) return fin();
+      const ctx = audio(), buf = ctx.createBuffer(1, pcm.length, rate); buf.copyToChannel(pcm, 0);
+      const src = ctx.createBufferSource(); src.buffer = buf;
+      src.playbackRate.value = 0.88 + 0.12 * Math.min(1.6, Math.max(0.3, cfg.hauteur));   // un peu plus grave si « hauteur » basse
+      if (cfg.metal) { const c = chaineMetal(ctx); src.connect(c.entree); c.sortie.connect(ctx.destination); } else src.connect(ctx.destination);
+      src.onended = () => { if (sourceHD === src) sourceHD = null; fin(); };
+      sourceHD = src; src.start();
+    });
+  }
+  function creerDiseurHD() {
+    const jeton = ++jetonHD; let chaine = Promise.resolve(), clos = false, resoudre;
+    const promesse = new Promise((r) => (resoudre = r));
+    const fin = () => { if (clos) return; clos = true; animerOnde(false); if (etat === "speaking") setEtat("idle"); resoudre(); };
+    let synthPrecedente = Promise.resolve();
+    return {
+      promesse,
+      ajouter(t) {
+        const propre = nettoyerPourVoix(t); if (!propre || clos || jeton !== jetonHD) return;   // coupé entre-temps
+        if (etat !== "speaking") { setEtat("speaking"); animerOnde(true); }
+        // on calcule la phrase suivante pendant que la précédente est jouée
+        const calc = synthPrecedente.then(() => synthHD(propre)); synthPrecedente = calc.catch(() => {});
+        chaine = chaine.then(() => calc).then((a) => (jeton === jetonHD && etat === "speaking" ? jouerHD(a, jeton) : null))
+          .catch((e) => { consigne("Voix HD indisponible : " + (e.message || e) + ". Choisissez une voix de l'appareil dans les réglages.", true); });
+      },
+      terminer() { chaine.then(fin); return promesse; },
+    };
+  }
   function creerDiseur() {
+    if (estHD(cfg.voix)) return creerDiseurHD();
     let file = [], fini = false, actif = false, clos = false, resoudre;
     const promesse = new Promise((r) => (resoudre = r));
     const voix = voixDispo.find((v) => v.name === cfg.voix);
@@ -226,21 +301,21 @@
     };
   }
   function parler(texte) {
-    if (!synth) return Promise.resolve();
-    synth.cancel();
+    if (!synth && !estHD(cfg.voix)) return Promise.resolve();
+    if (synth) synth.cancel(); arretHD();
     const d = creerDiseur();
     (texte.match(/[^.!?…]+[.!?…]*\s*/g) || [texte]).forEach((m) => d.ajouter(m));
     return d.terminer();
   }
   let appelEnCours = null;
-  function taire() { if (appelEnCours) { appelEnCours.abort(); appelEnCours = null; } if (synth) synth.cancel(); animerOnde(false); setEtat("idle"); }
+  function taire() { if (appelEnCours) { appelEnCours.abort(); appelEnCours = null; } if (synth) synth.cancel(); arretHD(); animerOnde(false); setEtat("idle"); }
 
   /* ---------- Voix d'entrée ---------- */
   const Reco = window.SpeechRecognition || window.webkitSpeechRecognition;
   let reco = null, entendu = "";
   function ecouter() {
     if (!Reco) { consigne("Ce navigateur ne sait pas écouter. Utilisez Chrome ou Edge, ou écrivez-moi ci-dessous.", true); return; }
-    if (synth) synth.cancel();
+    if (synth) synth.cancel(); arretHD();
     reco = new Reco();
     reco.lang = "fr-FR"; reco.interimResults = true; reco.continuous = false; reco.maxAlternatives = 1;
     entendu = "";
@@ -328,7 +403,7 @@
       await parler(reponse);
     } else {
       setEtat("thinking"); consigne("Je réfléchis…");
-      if (synth) synth.cancel();
+      if (synth) synth.cancel(); arretHD();
       const diseur = creerDiseur();
       let p = null, recu = "", dit = 0;
       const surMorceau = (delta) => {
@@ -1155,7 +1230,7 @@
     $("#cle").value = cfg.cle; $("#modele").value = cfg.modele; $("#surnom").value = cfg.surnom;
     $("#vitesse").value = cfg.vitesse; $("#vitesseVal").textContent = virgule(cfg.vitesse);
     $("#hauteur").value = cfg.hauteur; $("#hauteurVal").textContent = virgule(cfg.hauteur);
-    majStyles();
+    majStyles(); $("#effetMetal").checked = !!cfg.metal; majAideMetal();
     $("#cle").placeholder = cfg.fournisseur === "groq" ? "Clé Groq (commence par gsk_)" : "Clé Google AI Studio (commence par AIza)";
     $("#retourCle").textContent = "";
     $("#codeBriefing").value = store.get("codeBriefing", ""); $("#retourCode").textContent = "";
@@ -1169,9 +1244,9 @@
     cfg.modele = $("#modele").value.trim();
     cfg.surnom = $("#surnom").value.trim() || "Gaël";
     cfg.vitesse = parseFloat($("#vitesse").value); cfg.hauteur = parseFloat($("#hauteur").value);
-    cfg.voix = $("#voix").value;
+    cfg.voix = $("#voix").value; cfg.metal = $("#effetMetal").checked;
     if (ancien !== cfg.fournisseur + cfg.cle) { store.set("modelesAutoGemini2", null); store.set("modeleAutoGroq", null); }
-    ["fournisseur", "cle", "modele", "surnom", "vitesse", "hauteur", "voix"].forEach((k) => store.set(k, cfg[k]));
+    ["fournisseur", "cle", "modele", "surnom", "vitesse", "hauteur", "voix", "metal"].forEach((k) => store.set(k, cfg[k]));
     const codeSaisi = normCode($("#codeBriefing").value);
     if (codeSaisi || champsTouches.has("codeBriefing")) store.set("codeBriefing", codeSaisi);
     sauverCoffre();
@@ -1201,7 +1276,9 @@
     majStyles(); enregistrer(); parler(`Bonjour ${cfg.surnom}. Voici le style ${b.textContent.toLowerCase()}. Tous les systèmes sont opérationnels.`);
   }));
   ["vitesse", "hauteur"].forEach((id) => $("#" + id).addEventListener("input", majStyles));
-  $("#voix").addEventListener("change", () => { enregistrer(); parler(`Bonjour ${cfg.surnom}. Voici ma nouvelle voix.`); });
+  $("#voix").addEventListener("change", () => { enregistrer(); majAideMetal(); parler(`Bonjour ${cfg.surnom}. Voici ma nouvelle voix.`); });
+  function majAideMetal() { $("#aideMetal").classList.toggle("alerte-texte", cfg.metal && !estHD($("#voix").value)); }
+  $("#effetMetal").addEventListener("change", () => { enregistrer(); majAideMetal(); parler(`Bonjour ${cfg.surnom}. Effet ${cfg.metal ? "activé" : "désactivé"}. Tous les systèmes sont opérationnels.`); });
   $("#essayerVoix").addEventListener("click", () => { enregistrer(); parler(`Bonjour ${cfg.surnom}. Tous les systèmes sont opérationnels.`); });
   $("#testerCle").addEventListener("click", async () => {
     enregistrer();
