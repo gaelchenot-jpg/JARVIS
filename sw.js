@@ -1,6 +1,6 @@
 /* Jarvis : garde l'appli en mémoire pour qu'elle s'ouvre même sans réseau.
    Les appels au cerveau (Gemini, Groq) ne sont jamais mis en cache. */
-const VERSION = "jarvis-v38";
+const VERSION = "jarvis-v39";
 const VOIX = "jarvis-voix-hd";   // voix HD (gros fichiers) : gardée d'une version à l'autre
 const FICHIERS = ["./", "index.html", "css/jarvis.css", "js/app.js", "manifest.webmanifest", "briefing-exemple.json",
   "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png",
@@ -9,7 +9,7 @@ const FICHIERS = ["./", "index.html", "css/jarvis.css", "js/app.js", "manifest.w
 
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(VERSION).then((c) => c.addAll(FICHIERS))); self.skipWaiting(); });
 self.addEventListener("activate", (e) => {
-  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== VERSION && k !== VOIX).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== VERSION).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);

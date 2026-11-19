@@ -182,21 +182,13 @@
   const synth = window.speechSynthesis;
   let voixDispo = [];
   /* Voix « Jarvis HD » : modèles Piper libres, calculés dans le navigateur, identiques sur tous les appareils */
-  const VOIX_HD = [
-    { id: "hd:gilles", nom: "Jarvis HD · Gilles (homme)", modele: "fr-gilles-low", locuteur: 0 },
-    { id: "hd:tom", nom: "Jarvis HD · Tom (homme, net)", modele: "fr_FR-tom-medium", locuteur: 0, url: "https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/tom/medium/fr_FR-tom-medium.onnx" },
-    { id: "hd:grave", nom: "Jarvis HD · Grave (homme)", modele: "fr_FR-mls-medium", locuteur: 36, url: "https://huggingface.co/rhasspy/piper-voices/resolve/main/fr/fr_FR/mls/medium/fr_FR-mls-medium.onnx" },
-  ];
-  const estHD = (id) => typeof id === "string" && id.startsWith("hd:");
-  function ajouterVoixHD(sel) {
-    const g = document.createElement("optgroup"); g.label = "Voix Jarvis HD (PC et téléphone)";
-    VOIX_HD.forEach((v) => { const o = document.createElement("option"); o.value = v.id; o.textContent = v.nom; g.appendChild(o); });
-    sel.appendChild(g);
-    if (estHD(cfg.voix)) sel.value = cfg.voix;
-  }
+  // Voix HD retirées le 19/11 à la demande de Gaël : seules les voix de l'appareil restent.
+  const VOIX_HD = [];
+  const estHD = () => false;
+  function ajouterVoixHD() {}
   function chargerVoix() {
     const sel = $("#voix");
-    if (!synth) { sel.innerHTML = ""; ajouterVoixHD(sel); if (!estHD(cfg.voix)) cfg.voix = VOIX_HD[0].id; sel.value = cfg.voix; return; }
+    if (!synth) { sel.innerHTML = ""; return; }
     voixDispo = synth.getVoices().filter((v) => v.lang && v.lang.toLowerCase().startsWith("fr"));
     sel.innerHTML = "";
     if (!voixDispo.length) { const o = document.createElement("option"); o.textContent = "Voix française par défaut"; o.value = ""; sel.appendChild(o); ajouterVoixHD(sel); return; }
@@ -1230,7 +1222,7 @@
     $("#cle").value = cfg.cle; $("#modele").value = cfg.modele; $("#surnom").value = cfg.surnom;
     $("#vitesse").value = cfg.vitesse; $("#vitesseVal").textContent = virgule(cfg.vitesse);
     $("#hauteur").value = cfg.hauteur; $("#hauteurVal").textContent = virgule(cfg.hauteur);
-    majStyles(); $("#effetMetal").checked = !!cfg.metal; majAideMetal();
+    majStyles();
     $("#cle").placeholder = cfg.fournisseur === "groq" ? "Clé Groq (commence par gsk_)" : "Clé Google AI Studio (commence par AIza)";
     $("#retourCle").textContent = "";
     $("#codeBriefing").value = store.get("codeBriefing", ""); $("#retourCode").textContent = "";
@@ -1244,7 +1236,7 @@
     cfg.modele = $("#modele").value.trim();
     cfg.surnom = $("#surnom").value.trim() || "Gaël";
     cfg.vitesse = parseFloat($("#vitesse").value); cfg.hauteur = parseFloat($("#hauteur").value);
-    cfg.voix = $("#voix").value; cfg.metal = $("#effetMetal").checked;
+    cfg.voix = $("#voix").value; cfg.metal = false;
     if (ancien !== cfg.fournisseur + cfg.cle) { store.set("modelesAutoGemini2", null); store.set("modeleAutoGroq", null); }
     ["fournisseur", "cle", "modele", "surnom", "vitesse", "hauteur", "voix", "metal"].forEach((k) => store.set(k, cfg[k]));
     const codeSaisi = normCode($("#codeBriefing").value);
@@ -1277,8 +1269,7 @@
   }));
   ["vitesse", "hauteur"].forEach((id) => $("#" + id).addEventListener("input", majStyles));
   $("#voix").addEventListener("change", () => { enregistrer(); majAideMetal(); parler(`Bonjour ${cfg.surnom}. Voici ma nouvelle voix.`); });
-  function majAideMetal() { $("#aideMetal").classList.toggle("alerte-texte", cfg.metal && !estHD($("#voix").value)); }
-  $("#effetMetal").addEventListener("change", () => { enregistrer(); majAideMetal(); parler(`Bonjour ${cfg.surnom}. Effet ${cfg.metal ? "activé" : "désactivé"}. Tous les systèmes sont opérationnels.`); });
+  function majAideMetal() {}
   $("#essayerVoix").addEventListener("click", () => { enregistrer(); parler(`Bonjour ${cfg.surnom}. Tous les systèmes sont opérationnels.`); });
   $("#testerCle").addEventListener("click", async () => {
     enregistrer();
